@@ -1,0 +1,8 @@
+streamlit==1.56.0
+pandas==3.0.2
+numpy==2.4.4
+plotly==6.6.0
+pymavlink==2.4.49
+folium==0.20.0
+streamlit-folium==0.27.1
+requests==2.33.1
