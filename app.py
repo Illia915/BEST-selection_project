@@ -22,8 +22,10 @@ uploaded = st.sidebar.file_uploader(
     help='Бінарний лог польотного контролера Ardupilot',
 )
 
-use_demo  = False
-demo_path = None
+if uploaded is not None:
+    st.session_state.pop('demo_path', None)
+
+demo_path = st.session_state.get('demo_path')
 
 if uploaded is None:
     data_dir = os.path.join(os.path.dirname(__file__), 'data')
@@ -34,8 +36,8 @@ if uploaded is None:
             st.sidebar.subheader('або оберіть тестовий файл')
             chosen = st.sidebar.selectbox('Файл із папки data/', bin_files)
             if st.sidebar.button('Завантажити тестовий файл'):
-                demo_path = os.path.join(data_dir, chosen)
-                use_demo  = True
+                st.session_state['demo_path'] = os.path.join(data_dir, chosen)
+                demo_path = st.session_state['demo_path']
 
 st.sidebar.markdown('---')
 color_by = st.sidebar.radio(
@@ -91,13 +93,13 @@ def load_log(file_bytes_or_path):
     return result
 
 
-if uploaded is not None or use_demo:
+if uploaded is not None or demo_path:
 
     if uploaded is not None:
         dataframes = load_log(uploaded.read())
         filename   = uploaded.name
     else:
-        dataframes = load_log(demo_path)
+        dataframes = load_log(str(demo_path))
         filename   = os.path.basename(demo_path)
 
     st.sidebar.success(f'✅ {filename}')
