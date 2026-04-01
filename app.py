@@ -9,6 +9,7 @@ from visualization.map_view import build_map
 from ai.assistant import analyze_flight, analyze_flight_ab, AVAILABLE_MODELS, DEFAULT_MODEL
 from ai.token_counter import get_session_usage
 from i18n import t
+from visualization.map_view import build_map, generate_kml
 
 st.set_page_config(page_title='UAV Telemetry Analyzer', page_icon='', layout='wide')
 
