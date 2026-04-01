@@ -274,6 +274,18 @@ if uploaded is not None or demo_path:
             st_folium(build_map(gps_df), use_container_width=True, height=560)
         except ImportError:
             st.warning(t('warn_folium', lang))
+            
+        # --- ДОДАНИЙ КОД ДЛЯ KML ЕКСПОРТУ ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        kml_data = generate_kml(gps_df)
+        st.download_button(
+            label="🌍 Скачати траєкторію для Google Earth (.kml)",
+            data=kml_data,
+            file_name=f"{filename.split('.')[0]}_trajectory.kml",
+            mime="application/vnd.google-earth.kml+xml",
+            use_container_width=True,
+            type="primary"
+        )
 
     with tab_charts:
         col_l, col_r = st.columns(2)
