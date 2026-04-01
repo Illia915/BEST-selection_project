@@ -215,7 +215,23 @@ if uploaded is not None or demo_path:
     gps_enu = gps_to_enu(gps_df)
     metrics = compute_metrics(gps_df, imu_df)
 
-    st.markdown('<div class="section-label">Flight Metrics</div>', unsafe_allow_html=True)
+    gps_hz = metrics.get('gps_sampling_hz')
+    imu_hz = metrics.get('imu_sampling_hz')
+    badges = []
+    if gps_hz:
+        badges.append(f'GPS <span style="color:#e6edf3;font-weight:600">{gps_hz} Hz</span>')
+    if imu_hz:
+        badges.append(f'IMU <span style="color:#e6edf3;font-weight:600">{imu_hz} Hz</span>')
+    badges.append(f'Points <span style="color:#e6edf3;font-weight:600">{len(gps_df)}</span>')
+    badges_html = ' &nbsp;·&nbsp; '.join(badges)
+
+    st.markdown(
+        f'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+        f'<div class="section-label" style="margin-bottom:0">Flight Metrics</div>'
+        f'<div style="font-size:12px;color:#8b949e">{badges_html}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -236,7 +252,8 @@ if uploaded is not None or demo_path:
     with col4:
         st.metric('Max Acceleration',
                   f"{metrics['max_acceleration']} m/s²" if metrics['max_acceleration'] else '—')
-        st.metric('GPS Points', len(gps_df))
+        st.metric('Start Altitude',
+                  f"{metrics['start_alt_m']} m" if metrics['start_alt_m'] else '—')
 
     st.markdown('<div style="margin-top:24px"></div>', unsafe_allow_html=True)
 
