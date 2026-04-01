@@ -19,8 +19,8 @@
 ### 1. Клонувати репозиторій
 
 ```bash
-git clone <repo-url>
-cd uav-telemetry-analyzer
+git clone https://github.com/Illia915/BEST-selection_project.git
+cd BEST-selection_project
 ```
 
 ### 2. Встановити залежності
