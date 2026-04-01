@@ -13,92 +13,104 @@
 | **streamlit** | Веб-інтерфейс на Python без фронтенду |
 | **Google Gemini 2.5 Flash** | Безкоштовний LLM для автоматичного аналізу польоту |
 | **requests** | HTTP-клієнт для Gemini API |
+| **pymongo** | Зберігання AI pipeline логів у MongoDB |
 
 ## Запуск
 
-### 1. Клонувати репозиторій
+### Локально
 
 ```bash
 git clone https://github.com/Illia915/BEST-selection_project.git
 cd BEST-selection_project
-```
-
-### 2. Встановити залежності
-
-```bash
 pip install -r requirements.txt
-```
-
-### 3. Запустити застосунок
-
-```bash
+cp .env.example .env
 streamlit run app.py
 ```
 
 Відкриється браузер за адресою `http://localhost:8501`
 
-### 4. Завантажити лог-файл
+### Docker (з MongoDB)
 
-- Через кнопку у боковій панелі завантажте `.BIN` файл
-- Або виберіть тестовий файл із папки `data/`
+```bash
+cp .env.example .env
+docker-compose up --build
+```
+
+Відкрити `http://localhost:8501`
+
+## Конфігурація
+
+Скопіюй `.env.example` → `.env` і заповни:
+
+```env
+GEMINI_API_KEY=AIza...         # ключ з aistudio.google.com
+GEMINI_MODEL=gemini-2.5-flash  # модель за замовчуванням
+LOG_AI_PIPELINE=true           # логувати AI запити
+LOG_STORAGE=local              # local або mongodb
+MONGO_URI=mongodb://localhost:27017
+MONGO_DB=uav_telemetry
+```
 
 ## Структура проекту
 
 ```
 uav-telemetry-analyzer/
-├── app.py                    # Streamlit веб-інтерфейс
+├── app.py                      # Streamlit веб-інтерфейс
 ├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
 ├── data/
-│   ├── 00000001.BIN          # Тестовий лог-файл 1
-│   └── 00000019.BIN          # Тестовий лог-файл 2
-├── parser/
-│   └── dataflash.py          # Парсинг бінарних логів Ardupilot
+│   ├── 00000001.BIN
+│   └── 00000019.BIN
+├── scraper/
+│   └── dataflash.py            # Парсинг бінарних логів Ardupilot
 ├── analytics/
-│   ├── metrics.py            # Haversine, трапецієвидне інтегрування, метрики
-│   └── coords.py             # WGS-84 → ECEF → ENU перетворення
+│   ├── metrics.py              # Haversine, трапецієвидне інтегрування, метрики
+│   └── coords.py               # WGS-84 → ECEF → ENU перетворення
 ├── visualization/
-│   ├── plot3d.py             # 3D-траєкторія (Plotly)
-│   └── map_view.py           # 2D-карта (Folium / Leaflet)
-└── ai/
-    └── assistant.py          # AI-аналіз через Google Gemini 2.5 Flash
+│   ├── plot3d.py               # 3D-траєкторія (Plotly)
+│   └── map_view.py             # 2D-карта (Folium / Leaflet)
+├── ai/
+│   ├── assistant.py            # AI-аналіз, A/B порівняння моделей
+│   ├── prompts.py              # Промпти для Gemini
+│   ├── token_counter.py        # Лічильник токенів за сесію
+│   └── pipeline_logger.py      # Логування AI pipeline (JSON / MongoDB)
+├── logs/                       # Локальні JSON логи (git ignored)
+└── tests/
+    ├── test_parser.py
+    └── test_mavlink.py
 ```
 
 ## Функціональність
 
 ### MVP
 - Парсинг бінарних .BIN логів Ardupilot через pymavlink
-- Витяг GPS та IMU даних у pandas DataFrame з автоматичною нормалізацією колонок
-- Фільтрація GPS-шуму (від'ємні висоти, аутлайєри координат)
-- Метрики польоту:
-  - Загальна дистанція (алгоритм **haversine**)
-  - Максимальна горизонтальна та вертикальна швидкість
-  - Максимальне прискорення (95-й перцентиль IMU)
-  - Максимальний набір висоти від точки зльоту
-  - Тривалість польоту
-  - Швидкість з IMU через **трапецієвидне інтегрування**
+- Витяг GPS та IMU даних у pandas DataFrame з фільтрацією GPS-шуму
+- Метрики польоту: дистанція (**haversine**), швидкість, висота, прискорення (95-й перцентиль IMU), тривалість, швидкість з IMU (**трапецієвидне інтегрування**)
 - 3D-траєкторія з конвертацією **WGS-84 → ECEF → ENU**, кольорування за швидкістю або часом
 
 ### Nice-to-have
-- Інтерактивний веб-дашборд (Streamlit) з завантаженням файлу через інтерфейс
-- 2D-карта на OpenStreetMap (Folium, без API ключа)
-- AI-аналіз аномалій (Google Gemini 2.5 Flash): структурований технічний висновок з оцінкою показників
+- Інтерактивний веб-дашборд (Streamlit) з завантаженням файлу
+- 2D-карта (Folium / OpenStreetMap, без API ключа)
+- AI-аналіз через **Google Gemini 2.5 Flash** зі структурованим технічним висновком
+- **A/B порівняння моделей** — запустити кілька Gemini моделей паралельно та порівняти відповіді
+- **Лічильник токенів** — відображення використаних токенів за сесію
+- **Логування AI pipeline** — кожен запит зберігається в JSON або MongoDB з промптом, відповіддю, метриками та кількістю токенів
+- **Docker Compose** з MongoDB для persistentного зберігання логів
 
 ## AI-аналіз
 
-Використовується **Google Gemini 2.5 Flash** — безкоштовний API.
+Безкоштовний ключ: [aistudio.google.com](https://aistudio.google.com/app/apikey)
 
-Для отримання ключа:
-1. Перейти на [aistudio.google.com](https://aistudio.google.com/app/apikey)
-2. Отримати безкоштовний ключ (`AIza...`)
-3. Вставити у поле **Gemini API Key** у боковій панелі застосунку
+Підтримувані моделі:
+- `gemini-2.5-flash` — рекомендовано
+- `gemini-2.5-flash-lite` — швидший
+- `gemini-2.5-pro` — точніший
 
-AI виявляє аномалії в телеметрії (різкі зміни висоти, перевищення швидкості) та формує структурований технічний висновок із оцінкою кожного показника.
-
-## Docker (опціонально)
+## Тести
 
 ```bash
-docker build -t uav-analyzer .
-docker run -p 8501:8501 uav-analyzer
+python tests/test_parser.py
+python tests/test_mavlink.py
 ```
-
-Відкрити `http://localhost:8501`

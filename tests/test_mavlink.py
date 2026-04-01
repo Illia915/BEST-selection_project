@@ -1,6 +1,9 @@
+import os
 from pymavlink import DFReader
 
-log = DFReader.DFReader_binary('data/00000001.BIN')
+LOG_FILE = os.path.join(os.path.dirname(__file__), '..', 'data', '00000001.BIN')
+
+log = DFReader.DFReader_binary(LOG_FILE)
 
 msg_types = {}
 while True:
