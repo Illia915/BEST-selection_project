@@ -7,6 +7,7 @@ from visualization.plot3d import build_3d_track, build_altitude_chart, build_spe
 from visualization.map_view import build_map, generate_kml
 from ai.assistant import analyze_flight, analyze_flight_ab, AVAILABLE_MODELS, DEFAULT_MODEL
 from ai.token_counter import get_session_usage
+from ai.pipeline_logger import get_recent_logs
 from i18n import t
 
 st.set_page_config(page_title='UAV Telemetry Analyzer', page_icon='🛸', layout='wide')
@@ -122,7 +123,7 @@ st.sidebar.markdown(f'<div class="section-label" style="margin-top:16px">{t("sid
 color_by = st.sidebar.radio(t('sidebar_color_label', lang), ['speed', 'time'], format_func=lambda x: t('sidebar_color_speed', lang) if x == 'speed' else t('sidebar_color_time', lang), label_visibility='collapsed')
 
 st.sidebar.markdown(f'<div class="section-label" style="margin-top:16px">{t("sidebar_ai_engine", lang)}</div>', unsafe_allow_html=True)
-gemini_key = st.sidebar.text_input('Gemini API Key', type='password', placeholder=t('sidebar_api_key_placeholder', lang), help=t('sidebar_api_key_help', lang), label_visibility='collapsed')
+gemini_key = st.sidebar.text_input('Gemini API Key', type='password', placeholder=t('sidebar_api_key_placeholder', lang), help=t('sidebar_api_key_help', lang))
 
 ai_mode = st.sidebar.radio('Mode', ['single', 'ab'], format_func=lambda x: t('sidebar_mode_single', lang) if x == 'single' else t('sidebar_mode_ab', lang), label_visibility='collapsed')
 
