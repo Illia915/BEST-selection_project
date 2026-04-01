@@ -1,9 +1,9 @@
 import streamlit as st
 import os
-from scraper.dataflash import parse_log, get_gps_dataframe, get_imu_dataframe, get_attitude_dataframe
+from scraper.dataflash import parse_log, get_gps_dataframe, get_imu_dataframe, get_attitude_dataframe, get_vibe_dataframe
 from analytics.metrics import compute_metrics
 from analytics.coords import gps_to_enu
-from visualization.plot3d import build_3d_track, build_altitude_chart, build_speed_chart, build_speed_comparison_chart
+from visualization.plot3d import build_3d_track, build_altitude_chart, build_speed_comparison_chart, build_attitude_tracking_chart, build_vibration_chart
 from visualization.map_view import build_map, generate_kml
 from ai.assistant import analyze_flight, analyze_flight_ab, AVAILABLE_MODELS, DEFAULT_MODEL
 from ai.token_counter import get_session_usage
@@ -100,12 +100,9 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.sidebar.markdown(f'<div class="section-label">{t("sidebar_data_source", lang)}</div>', unsafe_allow_html=True)
-
 uploaded = st.sidebar.file_uploader(t('sidebar_upload_label', lang), type=['BIN', 'bin'], help=t('sidebar_upload_help', lang), label_visibility='collapsed')
 
-if uploaded is not None:
-    st.session_state.pop('demo_path', None)
-
+if uploaded is not None: st.session_state.pop('demo_path', None)
 demo_path = st.session_state.get('demo_path')
 
 if uploaded is None:
@@ -124,7 +121,6 @@ color_by = st.sidebar.radio(t('sidebar_color_label', lang), ['speed', 'time'], f
 
 st.sidebar.markdown(f'<div class="section-label" style="margin-top:16px">{t("sidebar_ai_engine", lang)}</div>', unsafe_allow_html=True)
 gemini_key = st.sidebar.text_input('Gemini API Key', type='password', placeholder=t('sidebar_api_key_placeholder', lang), help=t('sidebar_api_key_help', lang))
-
 ai_mode = st.sidebar.radio('Mode', ['single', 'ab'], format_func=lambda x: t('sidebar_mode_single', lang) if x == 'single' else t('sidebar_mode_ab', lang), label_visibility='collapsed')
 
 if ai_mode == 'single':
@@ -137,8 +133,7 @@ else:
 
 @st.cache_data(show_spinner=True)
 def load_log(file_bytes_or_path):
-    if isinstance(file_bytes_or_path, str):
-        return parse_log(file_bytes_or_path)
+    if isinstance(file_bytes_or_path, str): return parse_log(file_bytes_or_path)
     import tempfile
     with tempfile.NamedTemporaryFile(delete=False, suffix='.BIN') as tmp:
         tmp.write(file_bytes_or_path)
@@ -156,27 +151,21 @@ if uploaded is not None or demo_path:
         filename   = os.path.basename(demo_path)
 
     st.sidebar.success(f' {filename}')
-    with st.sidebar.expander(t('sidebar_message_types', lang)):
-        for name, df in sorted(dataframes.items()):
-            st.write(f'`{name}` — {len(df)} {t("sidebar_rows", lang)}')
-
     gps_df = get_gps_dataframe(dataframes)
     imu_df = get_imu_dataframe(dataframes)
     att_df = get_attitude_dataframe(dataframes)
+    vibe_df = get_vibe_dataframe(dataframes)
 
     if gps_df is None or len(gps_df) < 2:
         st.error(t('error_no_gps', lang))
-        st.info(t('info_try_file', lang))
         st.stop()
 
     gps_enu = gps_to_enu(gps_df)
-    metrics = compute_metrics(gps_df, imu_df, att_df)
+    metrics = compute_metrics(gps_df, imu_df, att_df, vibe_df)
 
-    gps_hz = metrics.get('gps_sampling_hz')
-    imu_hz = metrics.get('imu_sampling_hz')
     badges = []
-    if gps_hz: badges.append(f'GPS <span style="color:#e6edf3;font-weight:600">{gps_hz} Hz</span>')
-    if imu_hz: badges.append(f'IMU <span style="color:#e6edf3;font-weight:600">{imu_hz} Hz</span>')
+    if metrics.get('gps_sampling_hz'): badges.append(f'GPS <span style="color:#e6edf3;font-weight:600">{metrics["gps_sampling_hz"]} Hz</span>')
+    if metrics.get('imu_sampling_hz'): badges.append(f'IMU <span style="color:#e6edf3;font-weight:600">{metrics["imu_sampling_hz"]} Hz</span>')
     badges.append(f'Points <span style="color:#e6edf3;font-weight:600">{len(gps_df)}</span>')
     badges_html = ' &nbsp;·&nbsp; '.join(badges)
 
@@ -191,7 +180,7 @@ if uploaded is not None or demo_path:
         st.metric(t('metric_vert_speed', lang), f"{metrics['max_vert_speed_ms']} m/s" if metrics['max_vert_speed_ms'] else '—')
     with col3:
         st.metric(t('metric_max_alt', lang), f"{metrics['max_alt_m']} m" if metrics['max_alt_m'] else '—')
-        st.metric(t('metric_alt_gain', lang), f"{metrics['max_climb_rate']} m" if metrics['max_climb_rate'] else '—')
+        st.metric(t('metric_vibration', lang), f"{metrics.get('max_vibration', '—')} m/s²")
     with col4:
         st.metric(t('metric_acceleration', lang), f"{metrics['max_acceleration']} m/s²" if metrics['max_acceleration'] else '—')
         st.metric(t('metric_imu_vz', lang), f"{metrics['imu_max_vz_ms']} m/s" if metrics['imu_max_vz_ms'] else '—')
@@ -205,60 +194,51 @@ if uploaded is not None or demo_path:
         try:
             from streamlit_folium import st_folium
             st_folium(build_map(gps_df), use_container_width=True, height=560)
-        except ImportError:
-            st.warning(t('warn_folium', lang))
+        except: st.warning(t('warn_folium', lang))
         st.markdown("<br>", unsafe_allow_html=True)
         kml_data = generate_kml(gps_df)
         st.download_button(label="Скачати траєкторію для Google Earth (.kml)", data=kml_data, file_name=f"{filename.split('.')[0]}_trajectory.kml", mime="application/vnd.google-earth.kml+xml", use_container_width=True, type="primary")
 
     with tab_charts:
-        col_l, col_r = st.columns(2)
-        with col_l:
-            if 'Alt' in gps_df.columns: st.plotly_chart(build_altitude_chart(gps_df), use_container_width=True)
-        with col_r:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.plotly_chart(build_altitude_chart(gps_df), use_container_width=True)
+            track_fig = build_attitude_tracking_chart(att_df)
+            if track_fig: st.plotly_chart(track_fig, use_container_width=True)
+        with c2:
             comp_fig = build_speed_comparison_chart(imu_df, att_df, gps_df)
             if comp_fig: st.plotly_chart(comp_fig, use_container_width=True)
-            else:
-                spd_fig = build_speed_chart(gps_df)
-                if spd_fig: st.plotly_chart(spd_fig, use_container_width=True)
-        with st.expander(t('charts_raw_gps', lang)):
-            st.dataframe(gps_df.head(200), use_container_width=True)
+            vibe_fig = build_vibration_chart(vibe_df)
+            if vibe_fig: st.plotly_chart(vibe_fig, use_container_width=True)
+        with st.expander(t('charts_raw_gps', lang)): st.dataframe(gps_df.head(200), use_container_width=True)
 
     with tab_ai:
         mode_label = f'{t("ai_single_caption", lang)} · <span class="model-badge">{selected_model}</span>' if ai_mode == 'single' else f'{t("ai_ab_caption", lang)} · <span class="model-badge">{len(ab_models or [])} {t("ai_models_label", lang)}</span>'
         st.markdown(f'<div style="font-size:13px;color:#8b949e;margin-bottom:16px">{mode_label}</div>', unsafe_allow_html=True)
         col_btn, col_info = st.columns([1, 4])
-        with col_btn:
-            run_ai = st.button(t('ai_run_button', lang), type='primary', use_container_width=True)
-        with col_info:
-            st.markdown(f'<div style="font-size:12px;color:#8b949e;padding-top:8px">{t("ai_info", lang)}</div>', unsafe_allow_html=True)
+        with col_btn: run_ai = st.button(t('ai_run_button', lang), type='primary', use_container_width=True)
+        with col_info: st.markdown(f'<div style="font-size:12px;color:#8b949e;padding-top:8px">{t("ai_info", lang)}</div>', unsafe_allow_html=True)
 
         if run_ai:
             if not gemini_key: st.warning(t('ai_warn_no_key', lang))
             elif ai_mode == 'ab':
                 if not ab_models: st.warning(t('ai_warn_no_models', lang))
                 else:
-                    with st.spinner(t('ai_spinner_ab', lang)):
-                        results = analyze_flight_ab(metrics=metrics, gps_df=gps_df, api_key=gemini_key, models=ab_models)
+                    with st.spinner(t('ai_spinner_ab', lang)): results = analyze_flight_ab(metrics=metrics, gps_df=gps_df, api_key=gemini_key, models=ab_models)
                     cols = st.columns(len(results))
                     for col, res in zip(cols, results):
                         with col:
                             st.markdown(f'<div class="ai-card"><div class="ai-card-header"><span class="model-badge">{res["model"]}</span><span class="token-info">{res["prompt_tokens"]}↑ {res["completion_tokens"]}↓ tokens</span></div>', unsafe_allow_html=True)
-                            st.markdown(res['text'])
-                            st.markdown('</div>', unsafe_allow_html=True)
+                            st.markdown(res['text']); st.markdown('</div>', unsafe_allow_html=True)
                             st.download_button(f'{t("ai_export_ab", lang)} ({res["model"]})', data=res['text'], file_name=f'flight_analysis_{res["model"]}.txt', mime='text/plain', use_container_width=True)
             else:
-                with st.spinner(t('ai_spinner', lang)):
-                    result = analyze_flight(metrics=metrics, gps_df=gps_df, api_key=gemini_key, model=selected_model)
+                with st.spinner(t('ai_spinner', lang)): result = analyze_flight(metrics=metrics, gps_df=gps_df, api_key=gemini_key, model=selected_model)
                 st.markdown(f'<div class="ai-card"><div class="ai-card-header"><span class="model-badge">{result["model"]}</span><span class="token-info">{result["prompt_tokens"]}↑ &nbsp;{result["completion_tokens"]}↓ &nbsp;tokens</span></div>', unsafe_allow_html=True)
-                st.markdown(result['text'])
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown(result['text']); st.markdown('</div>', unsafe_allow_html=True)
                 st.download_button(t('ai_export', lang), data=result['text'], file_name='flight_analysis.txt', mime='text/plain')
 
         usage = get_session_usage()
-        if usage['requests'] > 0:
-            st.markdown(f'<div class="token-bar"><div class="token-stat">{t("token_requests", lang)} <span>{usage["requests"]}</span></div><div class="token-stat">{t("token_total", lang)} <span>{usage["total_tokens"]}</span></div><div class="token-stat">{t("token_prompt", lang)} <span>{usage["prompt_tokens"]}</span></div><div class="token-stat">{t("token_completion", lang)} <span>{usage["completion_tokens"]}</span></div></div>', unsafe_allow_html=True)
-
+        if usage['requests'] > 0: st.markdown(f'<div class="token-bar"><div class="token-stat">{t("token_requests", lang)} <span>{usage["requests"]}</span></div><div class="token-stat">{t("token_total", lang)} <span>{usage["total_tokens"]}</span></div><div class="token-stat">{t("token_prompt", lang)} <span>{usage["prompt_tokens"]}</span></div><div class="token-stat">{t("token_completion", lang)} <span>{usage["completion_tokens"]}</span></div></div>', unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         with st.expander("📜 Історія аналізів (MongoDB / Local)"):
             history = get_recent_logs(5)

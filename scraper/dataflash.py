@@ -45,9 +45,6 @@ def get_imu_dataframe(dataframes):
             if cl in ('accx', 'ax'): col_map[c] = 'AccX'
             elif cl in ('accy', 'ay'): col_map[c] = 'AccY'
             elif cl in ('accz', 'az'): col_map[c] = 'AccZ'
-            elif cl in ('gyrx', 'gx'): col_map[c] = 'GyrX'
-            elif cl in ('gyry', 'gy'): col_map[c] = 'GyrY'
-            elif cl in ('gyrz', 'gz'): col_map[c] = 'GyrZ'
         df = df.rename(columns=col_map)
         for c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce')
         return df.sort_values('TimeUS').reset_index(drop=True)
@@ -56,7 +53,13 @@ def get_imu_dataframe(dataframes):
 def get_attitude_dataframe(dataframes):
     if 'ATT' in dataframes:
         df = dataframes['ATT'].copy()
-        for c in ['Roll', 'Pitch', 'Yaw', 'TimeUS']:
-            if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce')
+        for c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce')
+        return df.sort_values('TimeUS').reset_index(drop=True)
+    return None
+
+def get_vibe_dataframe(dataframes):
+    if 'VIBE' in dataframes:
+        df = dataframes['VIBE'].copy()
+        for c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce')
         return df.sort_values('TimeUS').reset_index(drop=True)
     return None

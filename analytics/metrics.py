@@ -26,7 +26,7 @@ def trapz_integrate(values, times_us):
     return velocities
 
 def compute_sampling_rate(df, time_col='TimeUS'):
-    if time_col not in df.columns or len(df) < 2: return None
+    if df is None or time_col not in df.columns or len(df) < 2: return None
     times = pd.to_numeric(df[time_col], errors='coerce').dropna().values
     if len(times) < 2: return None
     dt_mean = np.mean(np.diff(times)) / 1e6
@@ -34,6 +34,7 @@ def compute_sampling_rate(df, time_col='TimeUS'):
 
 def filter_gps(gps_df):
     df = gps_df.copy()
+    if len(df) > 5: df = df.iloc[2:].reset_index(drop=True)
     if 'Lat' in df.columns and 'Lng' in df.columns:
         df = df[(df['Lat'] != 0) & (df['Lng'] != 0)]
     if len(df) > 10:
@@ -41,7 +42,12 @@ def filter_gps(gps_df):
         df = df[((df['Lat'] - lat_med).abs() < 0.1) & ((df['Lng'] - lng_med).abs() < 0.1)]
     return df.reset_index(drop=True)
 
-def compute_metrics(gps_df, imu_df=None, att_df=None):
+def downsample_df(df, max_points=5000):
+    if df is None or len(df) <= max_points: return df
+    step = len(df) // max_points
+    return df.iloc[::step].reset_index(drop=True)
+
+def compute_metrics(gps_df, imu_df=None, att_df=None, vibe_df=None):
     metrics = {}
     df = filter_gps(gps_df)
     metrics['total_distance_m'] = round(total_distance(df), 1)
@@ -49,7 +55,7 @@ def compute_metrics(gps_df, imu_df=None, att_df=None):
         metrics['total_duration_s'] = round((df['TimeUS'].iloc[-1] - df['TimeUS'].iloc[0]) / 1e6, 1)
     else: metrics['total_duration_s'] = None
     metrics['gps_sampling_hz'] = compute_sampling_rate(df)
-    metrics['imu_sampling_hz'] = compute_sampling_rate(imu_df) if imu_df is not None else None
+    metrics['imu_sampling_hz'] = compute_sampling_rate(imu_df)
     if 'Alt' in df.columns:
         metrics['start_alt_m'] = round(float(df['Alt'].iloc[0]), 1)
         metrics['max_alt_m'] = round(float(df['Alt'].max()), 1)
@@ -71,4 +77,7 @@ def compute_metrics(gps_df, imu_df=None, att_df=None):
             metrics['max_acceleration'] = round(float(np.nanpercentile(np.abs(np.sqrt(ax**2 + ay**2 + az**2) - 9.81), 95)), 2)
             if 'TimeUS' in imu_df.columns:
                 metrics['imu_max_vz_ms'] = round(float(np.abs(trapz_integrate(az - np.nanmean(az[:10]), imu_df['TimeUS'].values)).max()), 2)
+    if vibe_df is not None and 'VibeX' in vibe_df.columns:
+        v_max = max(vibe_df['VibeX'].max(), vibe_df['VibeY'].max(), vibe_df['VibeZ'].max())
+        metrics['max_vibration'] = round(float(v_max), 2)
     return metrics
