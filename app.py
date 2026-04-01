@@ -257,5 +257,14 @@ if uploaded is not None or demo_path:
         usage = get_session_usage()
         if usage['requests'] > 0:
             st.markdown(f'<div class="token-bar"><div class="token-stat">{t("token_requests", lang)} <span>{usage["requests"]}</span></div><div class="token-stat">{t("token_total", lang)} <span>{usage["total_tokens"]}</span></div><div class="token-stat">{t("token_prompt", lang)} <span>{usage["prompt_tokens"]}</span></div><div class="token-stat">{t("token_completion", lang)} <span>{usage["completion_tokens"]}</span></div></div>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander("📜 Історія аналізів (MongoDB / Local)"):
+            history = get_recent_logs(5)
+            if history:
+                for h in history:
+                    st.markdown(f"**{h['filename']}** ({h['model']}) — *{h['timestamp']}*")
+                    st.caption(h['response'][:200] + "...")
+            else: st.info("Історія поки порожня")
 else:
     st.markdown(f'<div style="text-align:center; padding: 60px 20px 40px;"><div style="font-size:48px; margin-bottom:12px">🛸</div><div style="font-size:22px; font-weight:700; color:#e6edf3; margin-bottom:8px">{t("landing_title", lang)}</div><div style="font-size:14px; color:#8b949e; max-width:480px; margin: 0 auto 40px;">{t("landing_subtitle", lang)}</div></div><div class="feature-grid"><div class="feature-card"><div class="feature-card-title">{t("landing_feat_3d_title", lang)}</div><div class="feature-card-desc">{t("landing_feat_3d_desc", lang)}</div></div><div class="feature-card"><div class="feature-card-title">{t("landing_feat_metrics_title", lang)}</div><div class="feature-card-desc">{t("landing_feat_metrics_desc", lang)}</div></div><div class="feature-card"><div class="feature-card-title">{t("landing_feat_map_title", lang)}</div><div class="feature-card-desc">{t("landing_feat_map_desc", lang)}</div></div><div class="feature-card"><div class="feature-card-title">{t("landing_feat_ai_title", lang)}</div><div class="feature-card-desc">{t("landing_feat_ai_desc", lang)}</div></div><div class="feature-card"><div class="feature-card-title">{t("landing_feat_ab_title", lang)}</div><div class="feature-card-desc">{t("landing_feat_ab_desc", lang)}</div></div><div class="feature-card"><div class="feature-card-title">{t("landing_feat_log_title", lang)}</div><div class="feature-card-desc">{t("landing_feat_log_desc", lang)}</div></div></div>', unsafe_allow_html=True)

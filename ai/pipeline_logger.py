@@ -66,3 +66,26 @@ def _log_to_mongo(entry: dict):
         client.close()
     except Exception as e:
         _log_to_file(entry)
+
+def get_recent_logs(limit=10):
+    if _STORAGE == "mongodb":
+        try:
+            from pymongo import MongoClient, DESCENDING
+            client = MongoClient(_MONGO_URI, serverSelectionTimeoutMS=2000)
+            db = client[_MONGO_DB]
+            logs = list(db["ai_pipeline"].find().sort("timestamp", DESCENDING).limit(limit))
+            client.close()
+            for log in logs: log.pop("_id", None)
+            return logs
+        except: return []
+    else:
+        os.makedirs(_LOG_DIR, exist_ok=True)
+        all_logs = []
+        try:
+            files = sorted([f for f in os.listdir(_LOG_DIR) if f.startswith("ai_pipeline_")], reverse=True)
+            for f in files:
+                with open(os.path.join(_LOG_DIR, f), "r", encoding="utf-8") as file:
+                    all_logs.extend(json.load(file))
+                if len(all_logs) >= limit: break
+            return sorted(all_logs, key=lambda x: x["timestamp"], reverse=True)[:limit]
+        except: return []
