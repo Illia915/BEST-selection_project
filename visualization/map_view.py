@@ -139,3 +139,49 @@ def _add_speed_legend(m, max_spd):
     </div>
     """
     m.get_root().html.add_child(folium.Element(legend_html))
+
+
+def generate_kml(gps_df):
+    """
+    Швидко генерує KML-файл з датафрейму GPS для перегляду в Google Earth.
+    Використовує векторизацію Pandas для максимальної продуктивності.
+    """
+    df = gps_df.copy()
+    
+    # Відфільтровуємо порожні координати
+    df = df.dropna(subset=['Lat', 'Lng'])
+    
+    if 'Alt' not in df.columns:
+        df['Alt'] = 0.0
+        
+    # Формуємо рядок координат у форматі: lon,lat,alt
+    coords = df[['Lng', 'Lat', 'Alt']].astype(str).agg(','.join, axis=1)
+    coords_str = '\n                '.join(coords)
+    
+    kml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Траєкторія польоту БПЛА</name>
+    <Style id="flightPathStyle">
+      <LineStyle>
+        <color>7fff0000</color> <width>4</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>7f00ff00</color>
+      </PolyStyle>
+    </Style>
+    <Placemark>
+      <name>Маршрут</name>
+      <styleUrl>#flightPathStyle</styleUrl>
+      <LineString>
+        <extrude>1</extrude>
+        <tessellate>1</tessellate>
+        <altitudeMode>absolute</altitudeMode>
+        <coordinates>
+                {coords_str}
+        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>"""
+    return kml
