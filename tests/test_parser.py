@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from scraper.dataflash import parse_log, get_gps_dataframe, get_imu_dataframe
+from scraper.dataflash import parse_log, get_gps_dataframe, get_imu_dataframe, get_attitude_dataframe
 from analytics.metrics import compute_metrics
 from analytics.coords import gps_to_enu
 

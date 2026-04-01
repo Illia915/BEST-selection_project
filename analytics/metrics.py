@@ -20,7 +20,9 @@ def trapz_integrate(values, times_us):
     acc = np.array(values)
     velocities = np.zeros(len(acc))
     for i in range(1, len(acc)):
-        velocities[i] = velocities[i-1] + (acc[i-1] + acc[i]) / 2.0 * dt[i-1]
+        v = velocities[i-1] + (acc[i-1] + acc[i]) / 2.0 * dt[i-1]
+        if np.abs(acc[i]) < 0.05: v *= 0.99
+        velocities[i] = v
     return velocities
 
 def compute_sampling_rate(df, time_col='TimeUS'):
@@ -36,7 +38,7 @@ def filter_gps(gps_df):
         df = df[(df['Lat'] != 0) & (df['Lng'] != 0)]
     if len(df) > 10:
         lat_med, lng_med = df['Lat'].median(), df['Lng'].median()
-        df = df[((df['Lat'] - lat_med).abs() < 2.0) & ((df['Lng'] - lng_med).abs() < 2.0)]
+        df = df[((df['Lat'] - lat_med).abs() < 0.1) & ((df['Lng'] - lng_med).abs() < 0.1)]
     return df.reset_index(drop=True)
 
 def compute_metrics(gps_df, imu_df=None, att_df=None):
