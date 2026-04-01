@@ -1,46 +1,40 @@
-def build_analysis_prompt(metrics: dict, anomalies: list[str]) -> str:
-    metrics_text = "\n".join([
-        f"- Загальна дистанція: {metrics.get('total_distance_m', 'н/д')} м",
-        f"- Тривалість польоту: {metrics.get('total_duration_s', 'н/д')} с",
-        f"- Максимальна горизонтальна швидкість: {metrics.get('max_horiz_speed_ms', 'н/д')} м/с",
-        f"- Максимальна вертикальна швидкість: {metrics.get('max_vert_speed_ms', 'н/д')} м/с",
-        f"- Максимальна висота: {metrics.get('max_alt_m', 'н/д')} м",
-        f"- Висота старту: {metrics.get('start_alt_m', 'н/д')} м",
-        f"- Набір висоти: {metrics.get('max_climb_rate', 'н/д')} м",
-        f"- Максимальне прискорення: {metrics.get('max_acceleration', 'н/д')} м/с²",
-    ])
+import pandas as pd
 
-    anomalies_text = (
-        "\n".join(f"- {a}" for a in anomalies)
-        if anomalies
-        else "- Аномалій не виявлено"
-    )
-
-    return f"""Ти — система автоматичного аналізу телеметрії БПЛА.
+SYSTEM_PROMPT = """Ти — система автоматичного аналізу телеметрії БПЛА.
 Без привітань і звернень. Відповідай ТІЛЬКИ у форматі нижче, без відхилень.
-Мова: українська. Стиль: технічний, лаконічний. Використовуй конкретні числа з даних.
+Мова: українська. Стиль: технічний, лаконічний. Використовуй конкретні числа з даних."""
 
-ТЕЛЕМЕТРІЯ:
-{metrics_text}
+def detect_anomalies(gps_df):
+    anomalies = []
+    if gps_df is None or len(gps_df) < 2: return anomalies
+    
+    spd = pd.to_numeric(gps_df['Spd'], errors='coerce')
+    if spd.max() > 20: anomalies.append(f"Перевищення швидкості: {spd.max():.1f} м/с")
+    
+    alt = pd.to_numeric(gps_df['Alt'], errors='coerce')
+    alt_diff = alt.diff().dropna()
+    if alt_diff.min() < -5: anomalies.append(f"Різке падіння висоти: {alt_diff.min():.1f} м/с")
+    if alt_diff.max() > 5: anomalies.append(f"Різкий набір висоти: {alt_diff.max():.1f} м/с")
+    
+    return anomalies[:10]
+
+def get_flight_report_prompt(metrics, gps_df):
+    anomalies = detect_anomalies(gps_df)
+    m_text = "\n".join([f"- {k}: {v}" for k, v in metrics.items()])
+    a_text = "\n".join([f"- {a}" for a in anomalies]) if anomalies else "- Відхилень не виявлено"
+    
+    return f"""ТЕЛЕМЕТРІЯ:
+{m_text}
 
 АНОМАЛІЇ:
-{anomalies_text}
+{a_text}
 
-ФОРМАТ ВІДПОВІДІ (суворо дотримуйся):
-
+ФОРМАТ ВІДПОВІДІ:
 ## Статус місії
-Одне речення: загальна оцінка (успішний / з відхиленнями / аварійний).
-
+...
 ## Ключові показники
-- Дистанція: ...
-- Тривалість: ...
-- Макс. швидкість: ... (оцінка: норма / підвищена / критична)
-- Макс. висота: ...
-- Набір висоти: ...
-- Макс. прискорення: ... (оцінка: норма / підвищена / критична)
-
+...
 ## Виявлені відхилення
-Перелік конкретних проблем із цифрами. Якщо немає — написати "Відхилень не виявлено".
-
+...
 ## Висновок
-2-3 речення технічного підсумку та рекомендацій."""
+..."""
