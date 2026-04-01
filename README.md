@@ -130,8 +130,8 @@ The key is free and has a generous rate limit for development use. You can also 
 │                               # Outputs dict[str, pd.DataFrame]
 │
 ├── analytics/
-│   ├── metrics.py              # Haversine distance, trapezoidal integration,
-│   │                           # GPS noise filtering, all metric computation
+│   ├── metrics.py              # Haversine, trapezoidal integration,
+│   │                           # sampling rate detection, GPS noise filtering
 │   └── coords.py               # WGS-84 → ECEF → ENU coordinate conversion
 │
 ├── visualization/
@@ -175,6 +175,8 @@ Ardupilot saves flight data in **DataFlash binary format** — a proprietary bin
 Each message type is collected into a list of dicts and then converted to a `pandas.DataFrame`. The function returns a `dict[str, DataFrame]` — one DataFrame per message type found in the log.
 
 Column names are normalized because different Ardupilot firmware versions use slightly different field names (e.g., `Lat` vs `latitude`, `Spd` vs `speed`).
+
+**Sampling rate detection** (`analytics/metrics.py → compute_sampling_rate`): The parser automatically computes the mean sampling frequency for GPS and IMU by averaging the time deltas between consecutive `TimeUS` timestamps. Results are displayed in the dashboard header next to the metrics (e.g., `GPS 5.0 Hz · IMU 100.0 Hz`). Typical values for Ardupilot: GPS 5–10 Hz, IMU 100–400 Hz.
 
 **GPS noise filtering** (`analytics/metrics.py → filter_gps`): Raw GPS logs often contain invalid readings — altitude going hundreds of meters below the takeoff point, coordinates jumping across the map. Two filters are applied before computing metrics:
 - Drop points where altitude is more than 200 m below the starting altitude
@@ -237,6 +239,8 @@ Note: double-integrating IMU data to get position accumulates error over time (s
 **Max acceleration** uses the **95th percentile** of the full IMU acceleration vector magnitude `√(AccX² + AccY² + AccZ²)` rather than the absolute maximum. This avoids single-sample noise spikes misrepresenting the actual peak acceleration.
 
 **Altitude gain** is calculated as `max_altitude − start_altitude` (not `max − min`), which gives the actual climb from the takeoff point rather than being inflated by descent below the launch elevation.
+
+**Sampling rate** is computed as `1 / mean(Δt)` where `Δt` is the difference between consecutive `TimeUS` values converted to seconds. Typical Ardupilot values: GPS 5–10 Hz, IMU 100–400 Hz. Both are displayed in the dashboard above the metrics panel.
 
 ---
 
