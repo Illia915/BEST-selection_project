@@ -37,13 +37,14 @@ else:
 
     print('\n── Метрики польоту ─────────────────────────────────────')
     imu_df = get_imu_dataframe(dataframes)
-    metrics = compute_metrics(gps_df, imu_df)
+    att_df = get_attitude_dataframe(dataframes)
+    metrics = compute_metrics(gps_df, imu_df, att_df)
 
     units = {
         'total_distance_m': 'м', 'max_horiz_speed_ms': 'м/с',
         'max_vert_speed_ms': 'м/с', 'max_acceleration': 'м/с²',
         'max_climb_rate': 'м', 'total_duration_s': 'с',
-        'start_alt_m': 'м', 'max_alt_m': 'м',
+        'start_alt_m': 'м', 'max_alt_m': 'м', 'imu_max_vz_ms': 'м/с',
     }
     for key, val in metrics.items():
         print(f'   {key:25s}: {val} {units.get(key, "")}')

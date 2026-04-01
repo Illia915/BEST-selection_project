@@ -31,6 +31,7 @@ TRANSLATIONS = {
         "metric_alt_gain": "Altitude Gain",
         "metric_acceleration": "Max Acceleration",
         "metric_start_alt": "Start Altitude",
+        "metric_imu_vz": "IMU Max VZ",
 
         "tab_3d": "3D Trajectory",
         "tab_map": "Map",
@@ -112,6 +113,7 @@ TRANSLATIONS = {
         "metric_alt_gain": "Набір висоти",
         "metric_acceleration": "Макс. прискорення",
         "metric_start_alt": "Висота старту",
+        "metric_imu_vz": "V-верт (IMU)",
 
         "tab_3d": "3D-траєкторія",
         "tab_map": "Карта",

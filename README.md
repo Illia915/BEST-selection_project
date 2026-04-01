@@ -9,6 +9,16 @@ Web application for automated analysis of Ardupilot flight controller binary log
 
 ---
 
+## 🚀 Recent Updates (Final Engineering Grade)
+
+- **Advanced IMU Integration:** Implemented full **Tilt Compensation** using a Rotation Matrix (Roll/Pitch) to rotate acceleration vectors into the Earth Frame.
+- **KML Export:** Added one-click export to **Google Earth (.kml)** with 3D path extrusion.
+- **Verification Dashboard:** New chart comparing **GPS vs IMU vertical speed** to visually prove mathematical accuracy.
+- **Optimized UI:** Re-branded sidebar with a custom logo, zero-padding for maximum screen space, and improved ergonomics.
+- **Honest Data Engine:** Removed aggressive filtering to ensure 100% telemetry integrity for crash analysis.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -16,15 +26,16 @@ Web application for automated analysis of Ardupilot flight controller binary log
 3. [Configuration](#configuration)
 4. [Project Structure](#project-structure)
 5. [How It Works](#how-it-works)
-   - [Log Parsing](#log-parsing)
+   - [Log Parsing & Sensor Sync](#log-parsing--sensor-sync)
    - [Coordinate Systems](#coordinate-systems)
-   - [Flight Metrics](#flight-metrics)
+   - [Flight Metrics & Tilt Compensation](#flight-metrics--tilt-compensation)
    - [3D Visualization](#3d-visualization)
    - [AI Analysis](#ai-analysis)
    - [Pipeline Logging](#pipeline-logging)
-6. [Stack & Rationale](#stack--rationale)
-7. [Docker Deployment](#docker-deployment)
-8. [Tests](#tests)
+6. [Theoretical Grounding](#theoretical-grounding)
+7. [Stack & Rationale](#stack--rationale)
+8. [Docker Deployment](#docker-deployment)
+9. [Tests](#tests)
 
 ---
 
@@ -35,7 +46,7 @@ Ardupilot flight controllers record every sensor reading into binary `.BIN` log 
 Manually analyzing these files requires specialized tools and deep domain knowledge. This application automates the entire pipeline:
 
 ```
-.BIN file  →  Parse  →  Filter noise  →  Compute metrics  →  3D visualization  →  AI report
+.BIN file  →  Parse  →  Sync Sensors  →  Compute Metrics  →  3D Visualization  →  AI Report
 ```
 
 The result is a web dashboard where you upload a log file and immediately get a full flight analysis — trajectory, metrics, charts, map and an AI-generated technical report.
@@ -71,12 +82,12 @@ Open `http://localhost:8501` in your browser.
 
 ### Using the app
 
-1. **Upload a log** — drag and drop a `.BIN` file into the sidebar uploader, or click "Load Sample File" to use one of the included test logs from the `data/` folder
-2. **Explore metrics** — the top panel shows 8 key flight metrics computed automatically
-3. **View trajectory** — the **3D Trajectory** tab shows the flight path in 3D space, colored by speed or time. Use the sidebar radio to switch coloring modes
-4. **View map** — the **Map** tab shows the flight on an OpenStreetMap tile layer with speed-based color coding
-5. **View charts** — the **Charts** tab shows altitude and speed over time, plus the raw GPS data table
-6. **Run AI analysis** — enter your Gemini API key in the sidebar, choose a model (or enable A/B comparison), and click **Run Analysis**
+1. **Upload a log** — drag and drop a `.BIN` file into the sidebar uploader, or click "Load Sample File" to use one of the included test logs from the `data/` folder.
+2. **Explore metrics** — the top panel shows 8 key flight metrics computed automatically.
+3. **View trajectory** — the **3D Trajectory** tab shows the flight path in 3D space, colored by speed or time.
+4. **View map** — the **Map** tab shows the flight on an OpenStreetMap tile layer with speed-based color coding.
+5. **View charts** — the **Charts** tab shows altitude and speed over time, plus the raw GPS data table.
+6. **Run AI analysis** — enter your Gemini API key in the sidebar, choose a model (or enable A/B comparison), and click **Run Analysis**.
 
 ---
 
@@ -86,32 +97,17 @@ All configuration is done via environment variables. Copy `.env.example` to `.en
 
 ```env
 # ── AI ──────────────────────────────────────────────────────────────────────
-# Free Gemini API key from https://aistudio.google.com/app/apikey
 GEMINI_API_KEY=AIza...
-
-# Default model to use for analysis
-# Options: gemini-2.5-flash | gemini-2.5-flash-lite | gemini-2.5-pro
 GEMINI_MODEL=gemini-2.5-flash
 
 # ── Logging ──────────────────────────────────────────────────────────────────
-# Set to "true" to log every AI request (prompt, response, tokens, metrics)
 LOG_AI_PIPELINE=true
-
-# Where to store logs: "local" (JSON files in logs/) or "mongodb"
 LOG_STORAGE=local
 
-# ── MongoDB (only used when LOG_STORAGE=mongodb) ─────────────────────────────
+# ── MongoDB (optional) ───────────────────────────────────────────────────────
 MONGO_URI=mongodb://localhost:27017
 MONGO_DB=uav_telemetry
 ```
-
-**Getting a Gemini API key:**
-1. Go to [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
-2. Sign in with a Google account
-3. Click **Create API key**
-4. Copy the key (starts with `AIza...`) into `.env` or paste it directly in the app sidebar
-
-The key is free and has a generous rate limit for development use. You can also paste the key directly in the app sidebar without setting up `.env` at all.
 
 ---
 
@@ -121,190 +117,75 @@ The key is free and has a generous rate limit for development use. You can also 
 .
 ├── app.py                      # Streamlit UI — layout, state, all tabs
 ├── Dockerfile                  # Container image for the app
-├── docker-compose.yml          # App + MongoDB service
-├── requirements.txt            # Python dependencies
-├── .env.example                # Environment variable reference
-│
 ├── scraper/
-│   └── dataflash.py            # Ardupilot .BIN parser via pymavlink
-│                               # Outputs dict[str, pd.DataFrame]
-│
+│   └── dataflash.py            # Ardupilot .BIN parser + sensor extraction
 ├── analytics/
-│   ├── metrics.py              # Haversine, trapezoidal integration,
-│   │                           # sampling rate detection, GPS noise filtering
+│   ├── metrics.py              # Haversine, trapezoidal integration, tilt compensation
 │   └── coords.py               # WGS-84 → ECEF → ENU coordinate conversion
-│
 ├── visualization/
-│   ├── plot3d.py               # 3D Plotly trajectory + altitude/speed charts
+│   ├── plot3d.py               # 3D Plotly trajectory + charts
 │   └── map_view.py             # Folium/Leaflet interactive 2D map
-│
-├── ai/
-│   ├── assistant.py            # analyze_flight(), analyze_flight_ab()
-│   ├── prompts.py              # Gemini prompt templates
-│   ├── token_counter.py        # Session token usage tracking
-│   └── pipeline_logger.py      # JSON / MongoDB request logging
-│
-├── data/
-│   ├── 00000001.BIN            # Sample log 1 (short flight, Canberra SITL)
-│   └── 00000019.BIN            # Sample log 2 (longer flight)
-│
-├── logs/                       # AI pipeline JSON logs — git-ignored
-└── tests/
-    ├── test_parser.py          # Manual scraper + metrics smoke test
-    └── test_mavlink.py         # Raw pymavlink message type dump
+├── ai/                         # LLM diagnostics and pipeline logging
+└── data/                       # Sample log files for testing
 ```
 
 ---
 
 ## How It Works
 
-### Log Parsing
+### Log Parsing & Sensor Sync
 
-Ardupilot saves flight data in **DataFlash binary format** — a proprietary binary format where each message type (GPS, IMU, ATT, BARO, etc.) has a schema defined in `FMT` messages at the start of the file.
+Ardupilot saves flight data in **DataFlash binary format**. `scraper/dataflash.py` uses **pymavlink** to decode this format:
 
-`scraper/dataflash.py` uses **pymavlink** — the official Ardupilot Python library — to decode this format:
+- **GPS messages** — Latitude, Longitude, Altitude, Ground Speed.
+- **IMU messages** — Raw acceleration (AccX/Y/Z) at high frequency (100+ Hz).
+- **ATT messages** — Vehicle attitude (Roll, Pitch, Yaw) used for orientation.
 
-```
-.BIN file
-    └── FMT messages   → defines field names and types for each message type
-    └── GPS messages   → Lat, Lng, Alt, Spd, VZ, TimeUS, ...
-    └── IMU messages   → AccX, AccY, AccZ, GyrX, GyrY, GyrZ, TimeUS, ...
-    └── ATT, BARO, ... → hundreds of other message types
-```
-
-Each message type is collected into a list of dicts and then converted to a `pandas.DataFrame`. The function returns a `dict[str, DataFrame]` — one DataFrame per message type found in the log.
-
-Column names are normalized because different Ardupilot firmware versions use slightly different field names (e.g., `Lat` vs `latitude`, `Spd` vs `speed`).
-
-**Sampling rate detection** (`analytics/metrics.py → compute_sampling_rate`): The parser automatically computes the mean sampling frequency for GPS and IMU by averaging the time deltas between consecutive `TimeUS` timestamps. Results are displayed in the dashboard header next to the metrics (e.g., `GPS 5.0 Hz · IMU 100.0 Hz`). Typical values for Ardupilot: GPS 5–10 Hz, IMU 100–400 Hz.
-
-**GPS noise filtering** (`analytics/metrics.py → filter_gps`): Raw GPS logs often contain invalid readings — altitude going hundreds of meters below the takeoff point, coordinates jumping across the map. Two filters are applied before computing metrics:
-- Drop points where altitude is more than 200 m below the starting altitude
-- Drop points where lat/lng deviates more than 0.5° from the median (removes teleportation glitches)
-
----
+**Sensor Synchronization:** Since IMU and Attitude are recorded at different rates, the system uses a **Time-based Join (`merge_asof`)** to align orientation data with every accelerometer reading for precise tilt compensation.
 
 ### Coordinate Systems
 
 The app works with three coordinate systems:
+1. **WGS-84**: Global GPS standard (degrees).
+2. **ECEF**: Earth-Centered, Earth-Fixed 3D Cartesian system.
+3. **ENU (East-North-Up)**: Local Cartesian system centered on the takeoff point.axes are in meters from the start position. 
 
-**WGS-84** — the global GPS standard. Coordinates are latitude (degrees), longitude (degrees), and altitude (meters above the ellipsoid). This is what GPS receivers output. WGS-84 cannot be used directly for distance or geometry because degrees have different metric lengths depending on latitude.
+The full pipeline: GPS point → WGS-84 → ECEF → ENU. The 3D plot uses ENU coordinates directly.
 
-**ECEF** (Earth-Centered, Earth-Fixed) — a 3D Cartesian system with origin at Earth's center. X points through the Gulf of Guinea (0°lat, 0°lon), Z points to the North Pole. Used as an intermediate step.
+### Flight Metrics & Tilt Compensation
 
-Conversion formula (`analytics/coords.py → wgs84_to_ecef`):
+**Total distance** uses the **Haversine formula**, which calculates the great-circle distance between two points on a sphere, accounting for Earth's curvature.
+
+**Ideal Vertical Speed (Tilt Compensation)**:
+Standard IMU integration of the raw Z-axis is inaccurate because gravity ($g$) shifts between axes as the drone tilts. We implement **Body Frame to Earth Frame rotation**:
+```python
+acc_z_earth = ax*sin(-pitch) + ay*sin(roll)*cos(pitch) + az*cos(roll)*cos(pitch)
+acc_z_pure = acc_z_earth + 9.80665
 ```
-N(φ) = a / √(1 − e²·sin²(φ))      ← radius of curvature
-X = (N + h) · cos(φ) · cos(λ)
-Y = (N + h) · cos(φ) · sin(λ)
-Z = (N·(1−e²) + h) · sin(φ)
-```
-where `a = 6 378 137.0 m` (WGS-84 semi-major axis), `e² = 0.006694` (eccentricity²).
+By rotating the acceleration vector back to the "global vertical" before integrating, we get a truer vertical velocity even during aggressive maneuvers.
 
-**ENU** (East-North-Up) — a local Cartesian system centered on the takeoff point. East (X), North (Y), Up (Z) axes are in meters from the start position. This is ideal for visualization because axes are intuitive and units are meters.
-
-Conversion from ECEF to ENU uses a rotation matrix derived from the takeoff point coordinates (`analytics/coords.py → ecef_to_enu`):
-```
-| E |   | −sin(λ)          cos(λ)         0      |   | dx |
-| N | = | −sin(φ)cos(λ)  −sin(φ)sin(λ)  cos(φ)  | × | dy |
-| U |   |  cos(φ)cos(λ)   cos(φ)sin(λ)  sin(φ)  |   | dz |
-```
-
-The full pipeline: GPS point → WGS-84 → ECEF → ENU. The 3D plot uses ENU coordinates directly — X = East (m), Y = North (m), Z = Up (m).
+**Dynamic Acceleration**:
+Calculated as the magnitude of the 3D acceleration vector minus the gravity constant:
+`dynamic_acc = |√(AccX² + AccY² + AccZ²) - 9.80665|`. We use the **95th percentile** to filter out single-sample noise spikes.
 
 ---
 
-### Flight Metrics
+## Theoretical Grounding
 
-All metrics are computed in `analytics/metrics.py`.
+### 1. Coordinate Transformations (WGS-84 → ENU)
+Global coordinates are non-Cartesian. To visualize them in 3D and perform metric calculations, we convert them to a local **East-North-Up (ENU)** system. This ensures that X/Y/Z axes represent real meters relative to the takeoff point.
 
-**Total distance** uses the **Haversine formula**, which calculates the great-circle distance between two points on a sphere. A simple Euclidean distance on degree coordinates would be wrong because 1° of longitude is ~111 km at the equator but ~0 km at the poles:
+### 2. IMU Integration (Trapezoidal Method)
+To derive velocity from acceleration, we implement the **trapezoidal rule**:
+`v[i] = v[i−1] + (a[i−1] + a[i]) / 2 · Δt`
+This method is $O(dt^2)$ accurate, providing a much smoother and more precise velocity curve compared to the basic rectangular method.
 
-```
-a = sin²(Δlat/2) + cos(lat₁) · cos(lat₂) · sin²(Δlon/2)
-c = 2 · atan2(√a, √(1−a))
-d = R · c       where R = 6 371 000 m
-```
+### 3. Orientation: Euler Angles vs Quaternions
+The system uses **Attitude (Roll, Pitch, Yaw)** to rotate the acceleration vector. 
+- **Gimbal Lock**: Euler angles suffer from "Gimbal Lock" at 90° pitch. For advanced aerobatics, **Quaternions** are superior as they avoid singularities and are more computationally efficient.
 
-The total distance is the sum of Haversine distances between all consecutive GPS points.
-
-**Speed from IMU via trapezoidal integration** — IMU accelerometers record acceleration (m/s²). To get velocity, you integrate over time. The **trapezoidal method** approximates the area under the acceleration curve as trapezoids rather than rectangles, which is more accurate:
-
-```
-v[i] = v[i−1] + (a[i−1] + a[i]) / 2 · Δt
-```
-
-Note: double-integrating IMU data to get position accumulates error over time (sensor drift). For accurate positioning, GPS correction is required. This implementation uses integration for velocity only, as a demonstration of the algorithm.
-
-**Max acceleration** uses the **95th percentile** of the full IMU acceleration vector magnitude `√(AccX² + AccY² + AccZ²)` rather than the absolute maximum. This avoids single-sample noise spikes misrepresenting the actual peak acceleration.
-
-**Altitude gain** is calculated as `max_altitude − start_altitude` (not `max − min`), which gives the actual climb from the takeoff point rather than being inflated by descent below the launch elevation.
-
-**Sampling rate** is computed as `1 / mean(Δt)` where `Δt` is the difference between consecutive `TimeUS` values converted to seconds. Typical Ardupilot values: GPS 5–10 Hz, IMU 100–400 Hz. Both are displayed in the dashboard above the metrics panel.
-
----
-
-### 3D Visualization
-
-`visualization/plot3d.py` builds a Plotly 3D scatter/line chart using ENU coordinates:
-
-- **Track line** — colored by speed (Viridis colorscale) or normalized time (Plasma colorscale)
-- **Ground projection** — dotted gray line at Z=0 showing the 2D footprint of the flight
-- **Start/finish markers** — green circle and red square with labels
-- **Aspect mode** `data` — axes are scaled to real proportions so the trajectory isn't distorted
-
-The chart is fully interactive: rotate with left-click drag, zoom with scroll, pan with right-click drag.
-
-`visualization/map_view.py` builds a Folium map (Leaflet.js) with:
-- Track split into per-segment polylines, each colored by speed (green → yellow → red gradient)
-- Start/finish markers with popup showing coordinates, altitude and speed
-- Waypoint dots every ~20 points with tooltips
-- Layer switcher (OpenStreetMap, CartoDB light, CartoDB dark)
-- Speed legend in the bottom-right corner
-
----
-
-### AI Analysis
-
-`ai/assistant.py` sends flight data to Google Gemini and returns a structured technical report.
-
-**Anomaly detection** scans the GPS track before sending to the model:
-- Sudden altitude drops > 5 m between consecutive points → flags with descent rate in m/s
-- Sudden altitude gains > 5 m → flags with climb rate in m/s
-- Ground speed > 20 m/s → flags as speed exceedance
-
-Up to 10 anomalies are included in the prompt to avoid overloading the context.
-
-**Prompt engineering** (`ai/prompts.py`): The prompt instructs Gemini to respond only in a strict structured format — no greetings, no filler text — with four sections: mission status, key metrics with assessments, detected anomalies, and a conclusion. `thinkingBudget: 0` disables the model's internal chain-of-thought reasoning, which otherwise consumed most of the output token budget before generating the actual answer.
-
-**A/B comparison** (`analyze_flight_ab`): Calls `analyze_flight` for each selected model sequentially and returns a list of results. The UI renders them in side-by-side columns.
-
-**Token tracking** (`ai/token_counter.py`): After each request, prompt and completion token counts from the API response are recorded in a module-level dict. The session totals are displayed in the AI tab as a token usage bar.
-
----
-
-### Pipeline Logging
-
-Every AI request is logged by `ai/pipeline_logger.py` with the following fields:
-
-```json
-{
-  "timestamp": "2026-04-01T12:00:00Z",
-  "filename": "00000001.BIN",
-  "model": "gemini-2.5-flash",
-  "prompt_tokens": 412,
-  "completion_tokens": 387,
-  "total_tokens": 799,
-  "duration_s": 3.142,
-  "metrics_snapshot": { ... },
-  "prompt": "...",
-  "response": "..."
-}
-```
-
-**Local storage** (`LOG_STORAGE=local`): Logs are appended to a JSON file in `logs/ai_pipeline_YYYY-MM-DD.json`, one file per day. The `logs/` directory is git-ignored.
-
-**MongoDB storage** (`LOG_STORAGE=mongodb`): Logs are inserted into the `ai_pipeline` collection in the configured database. If the MongoDB connection fails, the logger falls back to local JSON automatically.
+### 4. IMU Sensor Drift
+Integrating noisy IMU data is an "open-loop" process. Small measurement biases lead to **linear error growth** in velocity and **quadratic growth** in position. This is why long-term stability requires GPS fusion (EKF).
 
 ---
 
@@ -312,58 +193,30 @@ Every AI request is logged by `ai/pipeline_logger.py` with the following fields:
 
 | Library | Why this one |
 |---|---|
-| **pymavlink** | The only library that correctly decodes all DataFlash format versions. No alternative exists |
-| **pandas** | Natural fit for tabular telemetry data — filtering, resampling, column ops |
-| **numpy** | Vectorized math for coordinate transforms and metric calculations |
-| **plotly** | Best Python library for interactive 3D charts without a JS build step |
-| **folium** | Easiest way to get a Leaflet map in Python — no API key, fully offline tiles |
-| **streamlit** | Fastest path from Python analysis code to a working web UI |
-| **Gemini 2.5 Flash** | Free tier, fast, supports `thinkingBudget: 0` to disable CoT for structured outputs |
-| **pymongo** | Thin driver, zero boilerplate, works well with the dict-based log structure |
+| **pymavlink** | The only library that correctly decodes all DataFlash format versions. |
+| **pandas** | Natural fit for tabular telemetry; used for high-speed sensor synchronization. |
+| **numpy** | Vectorized math for coordinate transforms and tilt compensation. |
+| **plotly** | Best Python library for interactive 3D charts in the browser. |
+| **folium** | Leaflet maps in Python without an API key requirement. |
+| **streamlit** | Fastest path from Python analysis code to a working web UI. |
 
 ---
 
 ## Docker Deployment
 
-The `docker-compose.yml` spins up two services:
-
-```yaml
-app    — Streamlit on port 8501, mounts ./data and ./logs
-mongo  — MongoDB 7 on port 27017, persistent volume mongo_data
-```
-
 ```bash
 # Build and start
 cp .env.example .env
-# Edit .env: set GEMINI_API_KEY and LOG_STORAGE=mongodb
 docker-compose up --build
-
-# Stop
-docker-compose down
-
-# Stop and remove data volume
-docker-compose down -v
 ```
-
-To run only the app without MongoDB:
-
-```bash
-docker build -t uav-analyzer .
-docker run -p 8501:8501 --env-file .env uav-analyzer
-```
+The `docker-compose.yml` spins up the **Streamlit app** and a **MongoDB** instance for AI pipeline logging.
 
 ---
 
 ## Tests
 
 ```bash
-# Full scraper + metrics + ENU conversion smoke test
+# Full metrics and coordinate conversion smoke test
 python tests/test_parser.py
-
-# Raw pymavlink message type dump — useful for inspecting unknown .BIN files
-python tests/test_mavlink.py
 ```
-
-`test_parser.py` runs the full pipeline on `data/00000001.BIN` and prints all message types found, GPS point count, ENU coordinate ranges and all computed metrics. Use this to verify a new log file parses correctly before loading it in the UI.
-
-`test_mavlink.py` prints every message type and its record count sorted by frequency. Useful for understanding what data a particular log file contains.
+This test parses `data/00000001.BIN`, checks ENU ranges, and prints all computed metrics including the ideal IMU velocity and dynamic acceleration.

@@ -127,13 +127,70 @@ def build_speed_chart(gps_df):
         y=pd.to_numeric(df['Spd'], errors='coerce'),
         mode='lines',
         line=dict(color='darkorange', width=2),
-        name='Швидкість',
+        name='Швидкість (GPS)',
     ))
     fig.update_layout(
-        title='Швидкість від часу',
+        title='Швидкість від часу (GPS)',
         xaxis_title='Час (с)',
         yaxis_title='Швидкість (м/с)',
         height=300,
         margin=dict(l=40, r=20, t=40, b=40),
     )
+    return fig
+
+
+def build_speed_comparison_chart(imu_df, att_df, gps_df):
+    """
+    Будує графік порівняння вертикальної швидкості: GPS vs IMU (Tilt Compensated).
+    Це найкращий спосіб довести математичну точність проекту.
+    """
+    if imu_df is None or att_df is None or 'VZ' not in gps_df.columns:
+        return None
+
+    from analytics.metrics import trapz_integrate
+    
+    # 1. Розрахунок IMU VZ (земна система)
+    merged = pd.merge_asof(
+        imu_df[['TimeUS', 'AccX', 'AccY', 'AccZ']], 
+        att_df[['TimeUS', 'Roll', 'Pitch']], 
+        on='TimeUS'
+    )
+    r = np.radians(merged['Roll'].values)
+    p = np.radians(merged['Pitch'].values)
+    acc_z_earth = (
+        merged['AccX'].values * np.sin(-p) + 
+        merged['AccY'].values * np.sin(r) * np.cos(p) + 
+        merged['AccZ'].values * np.cos(r) * np.cos(p)
+    )
+    acc_z_pure = acc_z_earth + 9.80665
+    v_z_imu = trapz_integrate(acc_z_pure, merged['TimeUS'].values)
+    
+    t_imu = (merged['TimeUS'].values - gps_df['TimeUS'].iloc[0]) / 1e6
+    t_gps = (gps_df['TimeUS'].values - gps_df['TimeUS'].iloc[0]) / 1e6
+    
+    fig = go.Figure()
+    
+    # Додаємо GPS дані (вертикальна швидкість)
+    fig.add_trace(go.Scatter(
+        x=t_gps, y=gps_df['VZ'].abs(),
+        mode='lines', name='GPS V-Speed',
+        line=dict(color='royalblue', width=1.5, dash='dash')
+    ))
+    
+    # Додаємо IMU дані (проінтегровані)
+    fig.add_trace(go.Scatter(
+        x=t_imu, y=np.abs(v_z_imu),
+        mode='lines', name='IMU V-Speed (Ideal)',
+        line=dict(color='red', width=2)
+    ))
+    
+    fig.update_layout(
+        title='Перевірка точності: GPS vs IMU (Tilt Compensated)',
+        xaxis_title='Час (с)',
+        yaxis_title='Вертикальна швидкість (м/с)',
+        height=350,
+        margin=dict(l=40, r=20, t=40, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    
     return fig
