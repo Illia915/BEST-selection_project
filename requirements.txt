@@ -7,3 +7,5 @@ folium==0.20.0
 streamlit-folium==0.27.1
 requests==2.33.1
 pymongo==4.10.1
+google-generativeai==0.8.4
+pytest==8.3.4
