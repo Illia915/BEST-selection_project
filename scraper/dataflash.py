@@ -1,20 +1,51 @@
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 def parse_log(filepath):
     from pymavlink import DFReader
-    log = DFReader.DFReader_binary(filepath)
+    
+    try:
+        log = DFReader.DFReader_binary(filepath)
+    except FileNotFoundError:
+        logger.error(f"Log file not found: {filepath}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to open log file: {e}")
+        raise
+    
     records = {}
+    msg_count = 0
+    error_count = 0
+    
     while True:
-        msg = log.recv_msg()
-        if msg is None: break
-        msg_type = msg.get_type()
-        if msg_type in ('FMT', 'FMTU', 'MULT', 'UNIT', 'PARM'): continue
         try:
-            row = msg.to_dict()
-            row.pop('mavpackettype', None)
-        except: continue
-        if msg_type not in records: records[msg_type] = []
-        records[msg_type].append(row)
+            msg = log.recv_msg()
+            if msg is None:
+                break
+            msg_type = msg.get_type()
+            if msg_type in ('FMT', 'FMTU', 'MULT', 'UNIT', 'PARM'):
+                continue
+            try:
+                row = msg.to_dict()
+                row.pop('mavpackettype', None)
+            except Exception as e:
+                error_count += 1
+                logger.debug(f"Failed to parse message {msg_type}: {e}")
+                continue
+            if msg_type not in records:
+                records[msg_type] = []
+            records[msg_type].append(row)
+            msg_count += 1
+        except Exception as e:
+            error_count += 1
+            logger.warning(f"Error reading message: {e}")
+            continue
+    
+    if error_count > 0:
+        logger.warning(f"Parsed {msg_count} messages with {error_count} errors")
+    
     return {name: pd.DataFrame(rows) for name, rows in records.items() if rows}
 
 def get_gps_dataframe(dataframes):
