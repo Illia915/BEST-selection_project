@@ -41,8 +41,14 @@ def analyze_flight(metrics, gps_df, api_key, model=DEFAULT_MODEL):
     except Exception as e:
         return {"text": f"Error: {str(e)}", "model": model, "prompt_tokens": 0, "completion_tokens": 0}
 
-def analyze_flight_ab(metrics, gps_df, api_key, models):
-    results = []
-    for model in models:
-        results.append(analyze_flight(metrics, gps_df, api_key, model))
-    return results
+def analyze_flight_ab(metrics, gps_df, api_key, models, timeout=45):
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+    with ThreadPoolExecutor(max_workers=len(models)) as executor:
+        futures = {executor.submit(analyze_flight, metrics, gps_df, api_key, m): m for m in models}
+        results = []
+        for future, model in futures.items():
+            try:
+                results.append(future.result(timeout=timeout))
+            except FuturesTimeout:
+                results.append({"text": f"Timeout after {timeout}s", "model": model, "prompt_tokens": 0, "completion_tokens": 0})
+        return results

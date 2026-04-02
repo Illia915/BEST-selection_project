@@ -41,33 +41,38 @@ def total_distance(gps_df):
         dist += haversine(lats[i-1], lngs[i-1], lats[i], lngs[i])
     return dist
 
-def trapz_integrate(values, times_us):
+def trapz_integrate(values, times_us, detrend=False):
     """Integrate acceleration to velocity using trapezoidal rule.
-    
+
     Args:
         values: Acceleration values (m/s²)
         times_us: Timestamps in microseconds
-        
+        detrend: If True, apply linear drift correction assuming v_start = v_end = 0
+                 (valid when drone takes off and lands at rest)
+
     Returns:
         Velocity array (m/s)
     """
     values = np.asarray(values, dtype=np.float64)
     times_us = np.asarray(times_us, dtype=np.float64)
-    
+
     if len(values) != len(times_us) or len(values) < 2:
         return np.zeros(len(values))
-    
+
     dt = np.diff(times_us) / 1e6
     acc = values.copy()
     velocities = np.zeros(len(acc))
-    
+
     for i in range(1, len(acc)):
         v = velocities[i-1] + (acc[i-1] + acc[i]) / 2.0 * dt[i-1]
-        # Damping to reduce drift when acceleration is near zero
         if np.abs(acc[i]) < 0.05:
             v *= 0.99
         velocities[i] = v
-    
+
+    if detrend and len(velocities) > 2:
+        drift = np.linspace(0, velocities[-1], len(velocities))
+        velocities -= drift
+
     return velocities
 
 def compute_sampling_rate(df, time_col='TimeUS'):

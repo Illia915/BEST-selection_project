@@ -13,8 +13,8 @@ def detect_anomalies(gps_df):
     
     alt = pd.to_numeric(gps_df['Alt'], errors='coerce')
     alt_diff = alt.diff().dropna()
-    if alt_diff.min() < -5: anomalies.append(f"Різке падіння висоти: {alt_diff.min():.1f} м/с")
-    if alt_diff.max() > 5: anomalies.append(f"Різкий набір висоти: {alt_diff.max():.1f} м/с")
+    if alt_diff.min() < -5: anomalies.append(f"Різке падіння висоти: {alt_diff.min():.1f} м")
+    if alt_diff.max() > 5: anomalies.append(f"Різкий набір висоти: {alt_diff.max():.1f} м")
     
     return anomalies[:10]
 

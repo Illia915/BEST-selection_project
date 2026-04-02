@@ -181,11 +181,33 @@ To derive velocity from acceleration, we implement the **trapezoidal rule**:
 This method is $O(dt^2)$ accurate, providing a much smoother and more precise velocity curve compared to the basic rectangular method.
 
 ### 3. Orientation: Euler Angles vs Quaternions
-The system uses **Attitude (Roll, Pitch, Yaw)** to rotate the acceleration vector. 
-- **Gimbal Lock**: Euler angles suffer from "Gimbal Lock" at 90° pitch. For advanced aerobatics, **Quaternions** are superior as they avoid singularities and are more computationally efficient.
 
-### 4. IMU Sensor Drift
-Integrating noisy IMU data is an "open-loop" process. Small measurement biases lead to **linear error growth** in velocity and **quadratic growth** in position. This is why long-term stability requires GPS fusion (EKF).
+The system uses **Attitude (Roll, Pitch, Yaw)** from the ATT message log to rotate acceleration vectors from the Body Frame into the Earth Frame.
+
+**Euler angles** (Roll/Pitch/Yaw) are intuitive but have a critical mathematical flaw — **Gimbal Lock**. When pitch reaches ±90°, Roll and Yaw axes align, and the system loses one degree of freedom. It becomes impossible to distinguish rotation around two axes — the orientation representation degenerates. For a drone performing aggressive aerobatics or a flip maneuver, this means the attitude computation simply fails.
+
+**Quaternions** solve this by representing rotation as a 4D unit vector `q = [w, x, y, z]` with the constraint `w² + x² + y² + z² = 1`. There are no singularities in quaternion space — any 3D rotation is uniquely represented without ambiguity. Additionally, quaternion multiplication is computationally cheaper than composing three Euler rotation matrices.
+
+In this project we use Euler angles directly from the log (since that is what Ardupilot records in the ATT message), but in a full production flight controller, the internal attitude estimate uses quaternions, and they are only converted to Euler for logging and display purposes.
+
+### 4. IMU Sensor Drift — Nature of Double Integration Errors
+
+IMU velocity estimation is an **open-loop integration** process. Every error accumulates:
+
+| Integration stage | Error growth |
+|---|---|
+| Acceleration → Velocity (1× integral) | Linear drift — `O(t)` |
+| Velocity → Position (2× integral) | Quadratic drift — `O(t²)` |
+
+The two root causes:
+- **Bias**: Every MEMS accelerometer has a small constant offset (e.g., 0.01 m/s²). After 60 seconds: velocity error ≈ 0.6 m/s. After 60 more seconds: position error ≈ 36 m.
+- **Noise**: High-frequency vibration noise does not cancel out during integration — it accumulates as a random walk.
+
+This project addresses drift in two ways:
+1. **Near-zero damping** — when `|acc| < 0.05 m/s²`, velocity is multiplied by 0.99 per sample, suppressing drift during hover.
+2. **Linear detrend** — for visualization, we apply endpoint-zeroing: assuming `v_start = v_end = 0` (drone at rest at takeoff and landing), we subtract a linear ramp equal to the accumulated drift. This is a standard post-processing technique in inertial navigation.
+
+For long-term position accuracy, the correct solution is an **Extended Kalman Filter (EKF)** — the algorithm Ardupilot uses internally to fuse GPS position with IMU data, continuously correcting drift with an absolute reference.
 
 ---
 
@@ -220,3 +242,235 @@ The `docker-compose.yml` spins up the **Streamlit app** and a **MongoDB** instan
 python tests/test_parser.py
 ```
 This test parses `data/00000001.BIN`, checks ENU ranges, and prints all computed metrics including the ideal IMU velocity and dynamic acceleration.
+
+---
+
+---
+
+# UAV Telemetry Analyzer — Українська версія
+
+Веб-застосунок для автоматизованого аналізу бінарних лог-файлів польотного контролера Ardupilot (`.BIN`) з 3D-візуалізацією траєкторії, обчисленням метрик польоту та AI-діагностикою.
+
+---
+
+## Зміст
+
+1. [Огляд](#огляд)
+2. [Швидкий старт](#швидкий-старт)
+3. [Конфігурація](#конфігурація)
+4. [Структура проєкту](#структура-проєкту)
+5. [Як це працює](#як-це-працює)
+6. [Теоретичне обґрунтування](#теоретичне-обґрунтування)
+7. [Стек та обґрунтування вибору](#стек-та-обґрунтування-вибору)
+8. [Запуск через Docker](#запуск-через-docker)
+9. [Тести](#тести)
+
+---
+
+## Огляд
+
+Польотні контролери Ardupilot записують кожне показання датчиків у бінарні лог-файли `.BIN` (формат DataFlash). Ці файли містять GPS-координати, дані акселерометра/гіроскопа IMU, барометра, режимів польоту та десятки інших типів повідомлень — усе з мітками часу в мікросекундах.
+
+Ручний аналіз таких файлів вимагає спеціалізованих інструментів і глибоких знань. Цей застосунок автоматизує весь конвеєр:
+
+```
+.BIN файл → Парсинг → Синхронізація сенсорів → Метрики → 3D-візуалізація → AI-звіт
+```
+
+Результат — веб-дашборд, де після завантаження файлу одразу отримуєш повний аналіз польоту: траєкторію, метрики, графіки, карту та AI-технічний звіт.
+
+---
+
+## Швидкий старт
+
+### Вимоги
+
+- Python 3.11+
+- pip
+
+### Локальне розгортання
+
+```bash
+# 1. Клонувати репозиторій
+git clone https://github.com/Illia915/BEST-selection_project.git
+cd BEST-selection_project
+
+# 2. Встановити залежності
+pip install -r requirements.txt
+
+# 3. Налаштувати середовище
+cp .env.example .env
+# Відкрити .env та вказати GEMINI_API_KEY
+
+# 4. Запустити
+streamlit run app.py
+```
+
+Відкрити `http://localhost:8501` у браузері.
+
+### Використання застосунку
+
+1. **Завантажити лог** — перетягнути `.BIN` файл у сайдбар або натиснути "Завантажити тестовий файл".
+2. **Метрики** — верхня панель показує 8 ключових показників польоту.
+3. **3D траєкторія** — вкладка показує траєкторію в 3D просторі, розфарбовану за швидкістю або часом.
+4. **Карта** — вкладка показує маршрут на OpenStreetMap з кольоровим кодуванням швидкості.
+5. **Графіки** — вкладка показує висоту і швидкість у часі, порівняння GPS vs IMU вертикальної швидкості.
+6. **AI-аналіз** — ввести Gemini API ключ, обрати модель і натиснути **Запустити аналіз**.
+
+---
+
+## Конфігурація
+
+```env
+# ── AI ───────────────────────────────────────────────────────────────────────
+GEMINI_API_KEY=AIza...
+GEMINI_MODEL=gemini-2.5-flash
+
+# ── Логування ────────────────────────────────────────────────────────────────
+LOG_AI_PIPELINE=true
+LOG_STORAGE=local
+
+# ── MongoDB (опціонально) ─────────────────────────────────────────────────────
+MONGO_URI=mongodb://localhost:27017
+MONGO_DB=uav_telemetry
+```
+
+---
+
+## Структура проєкту
+
+```
+.
+├── app.py                      # Streamlit UI — розмітка, стан, всі вкладки
+├── Dockerfile                  # Образ контейнера
+├── scraper/
+│   └── dataflash.py            # Парсер .BIN + витяг даних сенсорів
+├── analytics/
+│   ├── metrics.py              # Haversine, трапецієве інтегрування, tilt compensation
+│   └── coords.py               # Перетворення WGS-84 → ECEF → ENU
+├── visualization/
+│   ├── plot3d.py               # 3D Plotly траєкторія + графіки
+│   └── map_view.py             # Інтерактивна 2D карта (Folium/Leaflet)
+├── ai/                         # LLM-діагностика та логування конвеєра
+└── data/                       # Тестові лог-файли
+```
+
+---
+
+## Як це працює
+
+### Парсинг логів і синхронізація сенсорів
+
+Ardupilot зберігає дані у **бінарному форматі DataFlash**. `scraper/dataflash.py` використовує **pymavlink** для декодування:
+
+- **GPS** — широта, довгота, висота, горизонтальна швидкість.
+- **IMU** — сирі прискорення AccX/Y/Z на частоті 100+ Гц.
+- **ATT** — орієнтація апарату (Roll, Pitch, Yaw) для tilt compensation.
+
+**Синхронізація сенсорів:** IMU і ATT записуються з різними частотами, тому система використовує **часове об'єднання (`merge_asof`)** для вирівнювання даних орієнтації з кожним вимірюванням акселерометра.
+
+### Системи координат
+
+Застосунок працює з трьома системами координат:
+1. **WGS-84** — глобальний GPS стандарт (градуси).
+2. **ECEF** — декартова система з початком у центрі Землі.
+3. **ENU (East-North-Up)** — локальна декартова система з початком у точці старту (метри).
+
+Повний конвеєр: GPS → WGS-84 → ECEF → ENU. 3D-графік використовує ENU безпосередньо.
+
+### Метрики польоту та компенсація нахилу
+
+**Загальна дистанція** — формула **Haversine**, яка обчислює відстань між двома точками по дузі великого кола з урахуванням кривизни Землі.
+
+**Ідеальна вертикальна швидкість (Tilt Compensation):**
+Просте інтегрування сирої осі Z IMU є неточним, бо гравітація ($g$) розподіляється між осями при нахилі. Реалізовано поворот **Body Frame → Earth Frame**:
+```python
+acc_z_earth = ax*sin(-pitch) + ay*sin(roll)*cos(pitch) + az*cos(roll)*cos(pitch)
+acc_z_pure = acc_z_earth + 9.80665
+```
+
+---
+
+## Теоретичне обґрунтування
+
+### 1. Перетворення координат WGS-84 → ENU
+
+Глобальні координати є не декартовими. Для 3D-візуалізації та метричних обчислень вони конвертуються у локальну систему **East-North-Up (ENU)**, де X/Y/Z відповідають реальним метрам відносно точки зльоту. Земля моделюється як еліпсоїд WGS-84 (не сфера), що дає точність до сантиметрів.
+
+### 2. Інтегрування IMU (метод трапецій)
+
+Для отримання швидкості з прискорення застосовано **правило трапецій**:
+
+```
+v[i] = v[i-1] + (a[i-1] + a[i]) / 2 · Δt
+```
+
+Метод має точність `O(dt²)` — значно точніший за прямокутний метод `O(dt)`.
+
+### 3. Орієнтація: кути Ейлера vs кватерніони
+
+Система використовує **Roll/Pitch/Yaw** з ATT-повідомлень для повороту вектора прискорення.
+
+**Кути Ейлера** мають критичний математичний недолік — **Gimbal Lock**. Коли кут Pitch досягає ±90°, осі Roll і Yaw вирівнюються, і система втрачає один ступінь свободи. Стає неможливим розрізнити обертання навколо двох осей — представлення орієнтації виродиться. Для БПЛА, що виконує агресивний маневр або переворот, це означає повну відмову обчислення орієнтації.
+
+**Кватерніони** вирішують цю проблему, представляючи поворот як 4D одиничний вектор `q = [w, x, y, z]` з умовою `w² + x² + y² + z² = 1`. У просторі кватерніонів немає сингулярностей — будь-яке 3D-обертання представлено однозначно. Множення кватерніонів також обчислювально дешевше за композицію трьох матриць Ейлера.
+
+У цьому проєкті кути Ейлера використовуються безпосередньо з лога (саме їх записує Ardupilot у ATT), але всередині польотного контролера оцінка орієнтації ведеться у кватерніонах, і вони конвертуються в Ейлер лише для запису і відображення.
+
+### 4. Природа похибок подвійного інтегрування IMU
+
+Оцінка швидкості через IMU — це **інтегрування з відкритим контуром**. Кожна похибка накопичується:
+
+| Стадія інтегрування | Зростання похибки |
+|---|---|
+| Прискорення → Швидкість (1× інтеграл) | Лінійний дрейф — `O(t)` |
+| Швидкість → Позиція (2× інтеграл) | Квадратичний дрейф — `O(t²)` |
+
+Два джерела проблеми:
+- **Зміщення (Bias)**: Кожен MEMS-акселерометр має невелике постійне зміщення (наприклад, 0.01 м/с²). Через 60 секунд: похибка швидкості ≈ 0.6 м/с. Через ще 60 секунд: похибка позиції ≈ 36 м.
+- **Шум**: Високочастотний шум вібрацій не компенсується при інтегруванні — він накопичується як випадкове блукання.
+
+У цьому проєкті дрейф компенсується двома способами:
+1. **Демпфування поблизу нуля** — коли `|acc| < 0.05 м/с²`, швидкість множиться на 0.99 за семпл, що пригнічує дрейф під час зависання.
+2. **Лінійне детрендування** — для візуалізації застосовується корекція кінцевої точки: припускаючи `v_початок = v_кінець = 0` (апарат у спокої на зльоті та посадці), віднімається лінійний нахил, що дорівнює накопиченому дрейфу.
+
+Правильне рішення для довгострокової точності позиції — **Розширений фільтр Калмана (EKF)**: саме цей алгоритм Ardupilot використовує всередині для злиття GPS-позиції з даними IMU, безперервно коригуючи дрейф абсолютним орієнтиром.
+
+---
+
+## Стек та обґрунтування вибору
+
+| Бібліотека | Чому саме вона |
+|---|---|
+| **pymavlink** | Єдина бібліотека, що коректно декодує всі версії формату DataFlash. |
+| **pandas** | Природне середовище для табличної телеметрії; використовується для швидкої синхронізації сенсорів. |
+| **numpy** | Векторизована математика для перетворень координат і tilt compensation. |
+| **plotly** | Найкраща Python-бібліотека для інтерактивних 3D-графіків у браузері. |
+| **folium** | Leaflet-карти в Python без потреби у платному API-ключі. |
+| **streamlit** | Найшвидший шлях від аналітичного Python-коду до робочого веб-інтерфейсу. |
+
+---
+
+## Запуск через Docker
+
+```bash
+# Зібрати та запустити
+cp .env.example .env
+docker-compose up --build
+```
+
+`docker-compose.yml` запускає **Streamlit-застосунок** та інстанс **MongoDB** для логування AI-конвеєра.
+
+---
+
+## Тести
+
+```bash
+# Повний smoke-тест метрик та конвертації координат
+python tests/test_parser.py
+
+# Unit-тести (29 тестів)
+pytest tests/test_units.py tests/test_math.py -v
+```
+
+Unit-тести покривають: Haversine, трапецієве інтегрування, WGS-84/ENU перетворення, парсинг колонок GPS/IMU/ATT, фільтрацію GPS, виявлення аномалій AI.

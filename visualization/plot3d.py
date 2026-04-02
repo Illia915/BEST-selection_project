@@ -34,7 +34,7 @@ def build_speed_comparison_chart(imu_df, att_df, gps_df):
     merged = pd.merge_asof(imu_df[['TimeUS', 'AccX', 'AccY', 'AccZ']], att_df[['TimeUS', 'Roll', 'Pitch']], on='TimeUS')
     r, p = np.radians(merged['Roll'].values), np.radians(merged['Pitch'].values)
     acc_z_earth = merged['AccX'].values * np.sin(-p) + merged['AccY'].values * np.sin(r) * np.cos(p) + merged['AccZ'].values * np.cos(r) * np.cos(p)
-    v_z_imu = trapz_integrate(acc_z_earth + 9.80665, merged['TimeUS'].values)
+    v_z_imu = trapz_integrate(acc_z_earth + 9.80665, merged['TimeUS'].values, detrend=True)
     m_ds = downsample_df(merged, 1000)
     v_df = pd.DataFrame({'v': np.abs(v_z_imu)})
     v_smooth = v_df['v'].rolling(window=20, center=True).mean().values
