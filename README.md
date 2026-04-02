@@ -9,7 +9,7 @@ Web application for automated analysis of Ardupilot flight controller binary log
 
 ---
 
-## 🚀 Recent Updates (Final Engineering Grade)
+## Recent Updates (Final Engineering Grade)
 
 - **Advanced IMU Integration:** Implemented full **Tilt Compensation** using a Rotation Matrix (Roll/Pitch) to rotate acceleration vectors into the Earth Frame.
 - **KML Export:** Added one-click export to **Google Earth (.kml)** with 3D path extrusion.
