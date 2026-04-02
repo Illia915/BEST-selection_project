@@ -205,9 +205,11 @@ def test_detect_anomalies_empty_df():
     assert detect_anomalies(None) == []
     assert detect_anomalies(pd.DataFrame()) == []
 
-def test_detect_anomalies_units_are_meters():
+def test_detect_anomalies_climb_rate_units():
+    # climb rate = dAlt/dt → must be in м/с, not bare м
     gps = _make_gps(alt_start=200.0, alt_end=50.0, n=5)
     anomalies = detect_anomalies(gps)
+    assert any(anomalies), "expected at least one anomaly for sharp altitude drop"
     for a in anomalies:
-        assert 'м/с' not in a
-        assert ' м' in a or a.endswith('м')
+        if 'падіння' in a or 'набір' in a:
+            assert 'м/с' in a

@@ -183,7 +183,8 @@ if uploaded is not None or demo_path:
         st.metric(t('metric_vert_speed', lang), f"{metrics['max_vert_speed_ms']} m/s" if metrics['max_vert_speed_ms'] else '—')
     with col3:
         st.metric(t('metric_max_alt', lang), f"{metrics['max_alt_m']} m" if metrics['max_alt_m'] else '—')
-        st.metric(t('metric_vibration', lang), f"{metrics.get('max_vibration', '—')} m/s²")
+        vib = metrics.get('max_vibration')
+        st.metric(t('metric_vibration', lang), f"{vib} m/s²" if vib is not None else '—')
     with col4:
         st.metric(t('metric_acceleration', lang), f"{metrics['max_acceleration']} m/s²" if metrics['max_acceleration'] else '—')
         st.metric(t('metric_imu_vz', lang), f"{metrics['imu_max_vz_ms']} m/s" if metrics['imu_max_vz_ms'] else '—')

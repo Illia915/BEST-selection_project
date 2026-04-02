@@ -18,10 +18,16 @@ def test_trapz_integrate():
     assert velocities[-1] == pytest.approx(9.0)
 
 def test_trapz_integrate_zupt():
-    # Перевірка роботи ZUPT (Zero Velocity Update)
-    # Прискорення майже нульове
-    acc = np.array([0.01, 0.01, 0.01])
-    times = np.array([0, 1e6, 2e6])
+    # ZUPT: 10 samples з нульовим прискоренням — швидкість має скинутись до 0
+    acc = np.zeros(10)
+    times = np.arange(10) * 1e6
     velocities = trapz_integrate(acc, times)
-    # Швидкість має бути затухаючою або дуже малою
-    assert velocities[-1] < 0.03
+    assert velocities[-1] == 0.0
+
+def test_trapz_integrate_zupt_resets_after_drift():
+    # Спочатку прискорення 1 м/с² (5 секунд), потім спокій (10 семплів)
+    acc = np.concatenate([np.ones(5), np.zeros(10)])
+    times = np.arange(15) * 1e6
+    velocities = trapz_integrate(acc, times)
+    # Після зони спокою швидкість має бути 0
+    assert velocities[-1] == 0.0

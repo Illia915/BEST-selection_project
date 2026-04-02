@@ -337,8 +337,8 @@ boxes = [
         "v[i] = v[i-1] + (a[i-1]+a[i])/2 · Δt",
         "Точність O(dt²) vs O(dt) прямокутний",
         "Гравітація: +9.80665 м/с² (точне)",
-        "Демпфування при |a| < 0.05",
-        "Лінійне детрендування (drift fix)",
+        "ZUPT: |acc|<0.08 x5 семплів → v=0",
+        "Лінійне детрендування (endpoint zeroing)",
     ]),
     (RED, "Tilt Compensation", [
         "Body Frame → Earth Frame rotation",
@@ -423,10 +423,10 @@ nice = [
     ("Streamlit Web UI (dark enterprise)", BLUE),
     ("Gemini 2.5 Flash AI-аналіз", BLUE),
     ("A/B порівняння моделей (паралельно)", BLUE),
-    ("Token counter (session_state)", BLUE),
-    ("Pipeline logger (JSON / MongoDB)", BLUE),
+    ("BARO / BAT / MODE / VIBE сенсори", BLUE),
     ("KML Export для Google Earth", BLUE),
     ("EN / UA мовний перемикач", BLUE),
+    ("Pipeline logger (JSON / MongoDB)", BLUE),
 ]
 
 for col_i, (title, items, color) in enumerate([
@@ -499,23 +499,23 @@ test_groups = [
         "ENU origin = (0,0,0)",
         "North / East direction",
     ]),
-    (GREEN, "metrics.py — 8 тестів", [
+    (GREEN, "metrics.py — 10 тестів", [
         "Haversine Kyiv-Lviv 468 km",
-        "Trapz 1 m/s² × 10s = 9 m/s",
-        "filter_gps outliers",
-        "sampling rate 5 Hz",
+        "Trapz 1 m/s² x 10s = 9 m/s",
+        "ZUPT resets velocity to 0",
+        "Peak-preserving downsample",
     ]),
     (BLUE, "dataflash.py — 7 тестів", [
         "Standard column names",
         "Alt column names (latitude...)",
         "Missing GPS → None",
-        "IMU short names (AX/AY/AZ)",
+        "IMU + Gyr short names",
     ]),
     (RED, "ai/prompts.py — 6 тестів", [
         "No anomalies baseline",
         "High speed detection",
-        "Sharp drop/climb",
-        "Units validation (м not м/с)",
+        "Sharp drop/climb (м/с)",
+        "Climb rate units correct",
     ]),
 ]
 
@@ -549,10 +549,10 @@ pdf.rect(148, 172, 146, 12, "FD")
 pdf.set_xy(152, 175)
 pdf.set_font("Arial", "B", 10)
 pdf.set_text_color(*GREEN)
-pdf.cell(30, 6, "29 / 29")
+pdf.cell(30, 6, "30 / 30")
 pdf.set_font("Arial", "", 9)
 pdf.set_text_color(*WHITE)
-pdf.cell(110, 6, "тестів пройдено  |  pytest tests/test_units.py tests/test_math.py -v")
+pdf.cell(110, 6, "тестів пройдено  |  pytest tests/test_units.py tests/test_math.py -v  |  30 passed in 0.38s")
 
 
 # ── Slide 6: Scoring ──────────────────────────────────────────────────────────
@@ -633,7 +633,7 @@ pdf.set_text_color(*GREEN)
 pdf.cell(40, 6, "100 / 100")
 pdf.set_font("Arial", "", 8)
 pdf.set_text_color(*GRAY)
-pdf.cell(0, 6, "  |  GitHub репозиторій  |  Docker-контейнер  |  29 тестів  |  EN/UA документація")
+pdf.cell(0, 6, "  |  GitHub репозиторій  |  Docker-контейнер  |  30 тестів  |  EN/UA документація")
 
 
 # ── Slide 7: Stack + How to run ───────────────────────────────────────────────

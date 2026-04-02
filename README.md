@@ -11,12 +11,14 @@ Web application for automated analysis of Ardupilot flight controller binary log
 
 ## Recent Updates
 
-- **Multi-Sensor Support:** Beyond the required GPS and IMU, the system now automatically detects and visualizes **BARO** (barometric altitude vs GPS comparison), **BAT/CURR** (battery voltage & current timeline), **MODE** (flight mode history), and **VIBE** (structural vibration analysis) — any sensor present in the log is shown automatically.
-- **Advanced IMU Integration:** Implemented full **Tilt Compensation** using a Rotation Matrix (Roll/Pitch) to rotate acceleration vectors into the Earth Frame. Linear drift correction (endpoint zeroing) applied before visualization.
+- **Multi-Sensor Support:** Beyond the required GPS and IMU, the system automatically detects and visualizes **BARO** (barometric altitude vs GPS), **BAT/CURR** (battery voltage & current), **MODE** (flight mode timeline), **VIBE** (structural vibrations), **ATT** (roll tracking) — any sensor present in the log appears automatically.
+- **ZUPT (Zero Velocity Update):** IMU integration now uses a physically correct stationary detection — if 5 consecutive samples have `|acc| < 0.08 m/s²`, velocity resets to 0. Replaces the previous ad-hoc damping heuristic.
+- **Peak-Preserving Downsampling:** `downsample_df` now guarantees that max/min values of Alt, Spd, VZ, AccZ are always included in the downsampled dataset — critical peaks are never lost during visualization.
+- **Tilt Compensation + Linear Detrend:** Full Body→Earth Frame rotation for IMU vertical speed, with endpoint-zeroing drift correction for visualization.
 - **KML Export:** One-click export to **Google Earth (.kml)** with 3D path extrusion.
-- **Verification Dashboard:** Chart comparing **GPS vs IMU vertical speed** — visually proves mathematical accuracy of tilt compensation.
-- **29 Unit Tests:** Full coverage of coordinate transforms, Haversine, IMU integration, GPS/IMU/ATT column mapping, and AI anomaly detection.
-- **A/B Model Comparison:** Parallel requests to multiple Gemini models (ThreadPoolExecutor) with 45s per-model timeout.
+- **Verification Dashboard:** GPS vs IMU vertical speed comparison chart — visually proves mathematical accuracy.
+- **30 Unit Tests:** Full coverage of coordinate transforms, Haversine, trapz integration, ZUPT, GPS/IMU/ATT column mapping, and AI anomaly detection.
+- **A/B Model Comparison:** Parallel Gemini model requests (ThreadPoolExecutor) with 45s per-model timeout and full exception handling.
 - **EN/UA Interface:** Full language switcher with complete Ukrainian translation.
 
 ---

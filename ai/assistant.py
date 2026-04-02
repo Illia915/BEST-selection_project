@@ -51,4 +51,6 @@ def analyze_flight_ab(metrics, gps_df, api_key, models, timeout=45):
                 results.append(future.result(timeout=timeout))
             except FuturesTimeout:
                 results.append({"text": f"Timeout after {timeout}s", "model": model, "prompt_tokens": 0, "completion_tokens": 0})
+            except Exception as e:
+                results.append({"text": f"Error: {str(e)}", "model": model, "prompt_tokens": 0, "completion_tokens": 0})
         return results

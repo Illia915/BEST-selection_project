@@ -63,11 +63,15 @@ def trapz_integrate(values, times_us, detrend=False):
     acc = values.copy()
     velocities = np.zeros(len(acc))
 
+    zupt_window = 5
+    zupt_threshold = 0.08
+
     for i in range(1, len(acc)):
-        v = velocities[i-1] + (acc[i-1] + acc[i]) / 2.0 * dt[i-1]
-        if np.abs(acc[i]) < 0.05:
-            v *= 0.99
-        velocities[i] = v
+        velocities[i] = velocities[i-1] + (acc[i-1] + acc[i]) / 2.0 * dt[i-1]
+        # ZUPT: if acceleration has been near-zero for zupt_window consecutive samples,
+        # the drone is stationary — reset velocity to 0
+        if i >= zupt_window and np.all(np.abs(acc[i - zupt_window:i]) < zupt_threshold):
+            velocities[i] = 0.0
 
     if detrend and len(velocities) > 2:
         drift = np.linspace(0, velocities[-1], len(velocities))
@@ -95,14 +99,18 @@ def filter_gps(gps_df):
         return gps_df
     
     df = gps_df.copy()
-    
-    # Skip first few points (GPS settling)
-    if len(df) > 5:
-        df = df.iloc[2:].reset_index(drop=True)
-    
-    # Remove zero coordinates
+
+    # Remove zero coordinates first
     if 'Lat' in df.columns and 'Lng' in df.columns:
         df = df[(df['Lat'] != 0) & (df['Lng'] != 0)]
+
+    # Skip leading points while GPS is still acquiring (only if Spd available)
+    if len(df) > 5 and 'Spd' in df.columns:
+        moving = df['Spd'].fillna(0) > 0.1
+        if moving.any():
+            first_valid = moving.idxmax()
+            if first_valid > df.index[0]:
+                df = df.loc[first_valid:].reset_index(drop=True)
     
     # Remove outliers using median-based filtering
     if len(df) > 10 and 'Lat' in df.columns and 'Lng' in df.columns:
@@ -114,7 +122,13 @@ def filter_gps(gps_df):
 def downsample_df(df, max_points=5000):
     if df is None or len(df) <= max_points: return df
     step = len(df) // max_points
-    return df.iloc[::step].reset_index(drop=True)
+    indices = list(range(0, len(df), step))
+    # Preserve peaks: include index of max/min for key columns
+    for col in ('Alt', 'Spd', 'VZ', 'AccZ'):
+        if col in df.columns:
+            indices.append(int(df[col].idxmax()))
+            indices.append(int(df[col].idxmin()))
+    return df.iloc[sorted(set(indices))].reset_index(drop=True)
 
 def compute_metrics(gps_df, imu_df=None, att_df=None, vibe_df=None):
     """Compute comprehensive flight metrics.
