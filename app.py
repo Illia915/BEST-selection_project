@@ -251,7 +251,7 @@ if uploaded is not None or demo_path:
         usage = get_session_usage()
         if usage['requests'] > 0: st.markdown(f'<div class="token-bar"><div class="token-stat">{t("token_requests", lang)} <span>{usage["requests"]}</span></div><div class="token-stat">{t("token_total", lang)} <span>{usage["total_tokens"]}</span></div><div class="token-stat">{t("token_prompt", lang)} <span>{usage["prompt_tokens"]}</span></div><div class="token-stat">{t("token_completion", lang)} <span>{usage["completion_tokens"]}</span></div></div>', unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("📜 Історія аналізів (MongoDB / Local)"):
+        with st.expander("Історія аналізів (MongoDB / Local)"):
             history = get_recent_logs(5)
             if history:
                 for h in history:

@@ -190,7 +190,7 @@ def compute_metrics(gps_df, imu_df=None, att_df=None, vibe_df=None):
             if len(alt_valid) > 0:
                 metrics['start_alt_m'] = round(float(alt_valid.iloc[0]), 1)
                 metrics['max_alt_m'] = round(float(alt_valid.max()), 1)
-                metrics['max_climb_rate'] = round(float(alt_valid.max() - alt_valid.iloc[0]), 1)
+                metrics['max_alt_gain_m'] = round(float(alt_valid.max() - alt_valid.iloc[0]), 1)
         except Exception as e:
             logger.warning(f"Failed to compute altitude metrics: {e}")
     

@@ -43,7 +43,7 @@ else:
     units = {
         'total_distance_m': 'м', 'max_horiz_speed_ms': 'м/с',
         'max_vert_speed_ms': 'м/с', 'max_acceleration': 'м/с²',
-        'max_climb_rate': 'м', 'total_duration_s': 'с',
+        'max_alt_gain_m': 'м', 'total_duration_s': 'с',
         'start_alt_m': 'м', 'max_alt_m': 'м', 'imu_max_vz_ms': 'м/с',
     }
     for key, val in metrics.items():
