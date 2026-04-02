@@ -9,13 +9,15 @@ Web application for automated analysis of Ardupilot flight controller binary log
 
 ---
 
-## Recent Updates (Final Engineering Grade)
+## Recent Updates
 
-- **Advanced IMU Integration:** Implemented full **Tilt Compensation** using a Rotation Matrix (Roll/Pitch) to rotate acceleration vectors into the Earth Frame.
-- **KML Export:** Added one-click export to **Google Earth (.kml)** with 3D path extrusion.
-- **Verification Dashboard:** New chart comparing **GPS vs IMU vertical speed** to visually prove mathematical accuracy.
-- **Optimized UI:** Re-branded sidebar with a custom logo, zero-padding for maximum screen space, and improved ergonomics.
-- **Honest Data Engine:** Removed aggressive filtering to ensure 100% telemetry integrity for crash analysis.
+- **Multi-Sensor Support:** Beyond the required GPS and IMU, the system now automatically detects and visualizes **BARO** (barometric altitude vs GPS comparison), **BAT/CURR** (battery voltage & current timeline), **MODE** (flight mode history), and **VIBE** (structural vibration analysis) — any sensor present in the log is shown automatically.
+- **Advanced IMU Integration:** Implemented full **Tilt Compensation** using a Rotation Matrix (Roll/Pitch) to rotate acceleration vectors into the Earth Frame. Linear drift correction (endpoint zeroing) applied before visualization.
+- **KML Export:** One-click export to **Google Earth (.kml)** with 3D path extrusion.
+- **Verification Dashboard:** Chart comparing **GPS vs IMU vertical speed** — visually proves mathematical accuracy of tilt compensation.
+- **29 Unit Tests:** Full coverage of coordinate transforms, Haversine, IMU integration, GPS/IMU/ATT column mapping, and AI anomaly detection.
+- **A/B Model Comparison:** Parallel requests to multiple Gemini models (ThreadPoolExecutor) with 45s per-model timeout.
+- **EN/UA Interface:** Full language switcher with complete Ukrainian translation.
 
 ---
 

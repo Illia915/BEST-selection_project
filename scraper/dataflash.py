@@ -94,3 +94,40 @@ def get_vibe_dataframe(dataframes):
         for c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce')
         return df.sort_values('TimeUS').reset_index(drop=True)
     return None
+
+def get_baro_dataframe(dataframes):
+    for name in ['BARO', 'BAR2', 'BAR3']:
+        if name not in dataframes: continue
+        df = dataframes[name].copy()
+        col_map = {}
+        for c in df.columns:
+            cl = c.lower()
+            if cl in ('alt', 'altitude'): col_map[c] = 'Alt'
+            elif cl in ('press', 'pressure'): col_map[c] = 'Press'
+            elif cl in ('temp', 'temperature'): col_map[c] = 'Temp'
+        df = df.rename(columns=col_map)
+        for c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce')
+        return df.sort_values('TimeUS').reset_index(drop=True)
+    return None
+
+def get_battery_dataframe(dataframes):
+    for name in ['BAT', 'BAT2', 'CURR']:
+        if name not in dataframes: continue
+        df = dataframes[name].copy()
+        col_map = {}
+        for c in df.columns:
+            cl = c.lower()
+            if cl in ('volt', 'voltage', 'v'): col_map[c] = 'Volt'
+            elif cl in ('curr', 'current', 'i'): col_map[c] = 'Curr'
+            elif cl in ('currtot', 'consumedah', 'mah'): col_map[c] = 'CurrTot'
+        df = df.rename(columns=col_map)
+        for c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce')
+        return df.sort_values('TimeUS').reset_index(drop=True)
+    return None
+
+def get_mode_dataframe(dataframes):
+    if 'MODE' in dataframes:
+        df = dataframes['MODE'].copy()
+        if 'TimeUS' in df.columns: df['TimeUS'] = pd.to_numeric(df['TimeUS'], errors='coerce')
+        return df.sort_values('TimeUS').reset_index(drop=True)
+    return None

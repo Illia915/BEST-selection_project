@@ -60,6 +60,42 @@ def build_attitude_tracking_chart(att_df):
     fig.update_layout(template='plotly_dark', title='Control Quality: Roll Tracking', xaxis_title='Час (с)', yaxis_title='Градуси', height=300, margin=dict(l=40, r=20, t=40, b=40), legend=dict(orientation="h", y=1.1))
     return fig
 
+def build_baro_vs_gps_chart(baro_df, gps_df):
+    if baro_df is None or 'Alt' not in baro_df.columns: return None
+    from analytics.metrics import downsample_df
+    b = downsample_df(baro_df, 1000)
+    t_baro = (b['TimeUS'] - gps_df['TimeUS'].iloc[0]) / 1e6
+    fig = go.Figure()
+    g = downsample_df(gps_df, 1000)
+    t_gps = (g['TimeUS'] - gps_df['TimeUS'].iloc[0]) / 1e6
+    fig.add_trace(go.Scatter(x=t_gps, y=g['Alt'], mode='lines', name='GPS Alt',
+        line=dict(color='#58a6ff', width=1.5, dash='dash')))
+    fig.add_trace(go.Scatter(x=t_baro, y=b['Alt'], mode='lines', name='Baro Alt',
+        line=dict(color='#ff9500', width=2)))
+    fig.update_layout(template='plotly_dark', title='Altitude: GPS vs Barometer',
+        xaxis_title='Час (с)', yaxis_title='Метри', height=300,
+        margin=dict(l=40, r=20, t=40, b=40),
+        legend=dict(orientation="h", y=1.1))
+    return fig
+
+def build_battery_chart(bat_df, gps_df):
+    if bat_df is None or 'Volt' not in bat_df.columns: return None
+    from analytics.metrics import downsample_df
+    df = downsample_df(bat_df, 1000)
+    t = (df['TimeUS'] - gps_df['TimeUS'].iloc[0]) / 1e6
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=t, y=df['Volt'], mode='lines', name='Voltage (V)',
+        line=dict(color='#ffcc00', width=2)))
+    if 'Curr' in df.columns:
+        fig.add_trace(go.Scatter(x=t, y=df['Curr'], mode='lines', name='Current (A)',
+            line=dict(color='#ff4b4b', width=1.5), yaxis='y2'))
+    fig.update_layout(template='plotly_dark', title='Battery: Voltage & Current',
+        xaxis_title='Час (с)', yaxis_title='Вольти (V)', height=300,
+        margin=dict(l=40, r=20, t=40, b=40),
+        yaxis2=dict(title='Ампери (A)', overlaying='y', side='right', showgrid=False),
+        legend=dict(orientation="h", y=1.1))
+    return fig
+
 def build_vibration_chart(vibe_df):
     if vibe_df is None or 'VibeX' not in vibe_df.columns: return None
     from analytics.metrics import downsample_df

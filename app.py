@@ -1,9 +1,9 @@
 import streamlit as st
 import os
-from scraper.dataflash import parse_log, get_gps_dataframe, get_imu_dataframe, get_attitude_dataframe, get_vibe_dataframe
+from scraper.dataflash import parse_log, get_gps_dataframe, get_imu_dataframe, get_attitude_dataframe, get_vibe_dataframe, get_baro_dataframe, get_battery_dataframe, get_mode_dataframe
 from analytics.metrics import compute_metrics
 from analytics.coords import gps_to_enu
-from visualization.plot3d import build_3d_track, build_altitude_chart, build_speed_comparison_chart, build_attitude_tracking_chart, build_vibration_chart
+from visualization.plot3d import build_3d_track, build_altitude_chart, build_speed_comparison_chart, build_attitude_tracking_chart, build_vibration_chart, build_baro_vs_gps_chart, build_battery_chart
 from visualization.map_view import build_map, generate_kml
 from ai.assistant import analyze_flight, analyze_flight_ab, AVAILABLE_MODELS, DEFAULT_MODEL
 from ai.token_counter import get_session_usage
@@ -151,10 +151,13 @@ if uploaded is not None or demo_path:
         filename   = os.path.basename(demo_path)
 
     st.sidebar.success(f' {filename}')
-    gps_df = get_gps_dataframe(dataframes)
-    imu_df = get_imu_dataframe(dataframes)
-    att_df = get_attitude_dataframe(dataframes)
+    gps_df  = get_gps_dataframe(dataframes)
+    imu_df  = get_imu_dataframe(dataframes)
+    att_df  = get_attitude_dataframe(dataframes)
     vibe_df = get_vibe_dataframe(dataframes)
+    baro_df = get_baro_dataframe(dataframes)
+    bat_df  = get_battery_dataframe(dataframes)
+    mode_df = get_mode_dataframe(dataframes)
 
     if gps_df is None or len(gps_df) < 2:
         st.error(t('error_no_gps', lang))
@@ -202,14 +205,21 @@ if uploaded is not None or demo_path:
     with tab_charts:
         c1, c2 = st.columns(2)
         with c1:
-            st.plotly_chart(build_altitude_chart(gps_df), use_container_width=True)
+            baro_fig = build_baro_vs_gps_chart(baro_df, gps_df)
+            if baro_fig: st.plotly_chart(baro_fig, use_container_width=True)
+            else: st.plotly_chart(build_altitude_chart(gps_df), use_container_width=True)
             track_fig = build_attitude_tracking_chart(att_df)
             if track_fig: st.plotly_chart(track_fig, use_container_width=True)
+            bat_fig = build_battery_chart(bat_df, gps_df)
+            if bat_fig: st.plotly_chart(bat_fig, use_container_width=True)
         with c2:
             comp_fig = build_speed_comparison_chart(imu_df, att_df, gps_df)
             if comp_fig: st.plotly_chart(comp_fig, use_container_width=True)
             vibe_fig = build_vibration_chart(vibe_df)
             if vibe_fig: st.plotly_chart(vibe_fig, use_container_width=True)
+        if mode_df is not None and 'Mode' in mode_df.columns:
+            with st.expander('Flight Mode Timeline'):
+                st.dataframe(mode_df[['TimeUS', 'Mode'] + [c for c in mode_df.columns if c not in ('TimeUS', 'Mode')]].head(100), use_container_width=True)
         with st.expander(t('charts_raw_gps', lang)): st.dataframe(gps_df.head(200), use_container_width=True)
 
     with tab_ai:
