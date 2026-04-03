@@ -208,7 +208,7 @@ The two root causes:
 - **Noise**: High-frequency vibration noise does not cancel out during integration — it accumulates as a random walk.
 
 This project addresses drift in two ways:
-1. **Near-zero damping** — when `|acc| < 0.05 m/s²`, velocity is multiplied by 0.99 per sample, suppressing drift during hover.
+1. **ZUPT (Zero Velocity Update)** — when `|acc| < 0.08 m/s²` for 5 consecutive samples, the drone is considered stationary and velocity is reset to 0. This prevents linear drift accumulation during hover or before takeoff.
 2. **Linear detrend** — for visualization, we apply endpoint-zeroing: assuming `v_start = v_end = 0` (drone at rest at takeoff and landing), we subtract a linear ramp equal to the accumulated drift. This is a standard post-processing technique in inertial navigation.
 
 For long-term position accuracy, the correct solution is an **Extended Kalman Filter (EKF)** — the algorithm Ardupilot uses internally to fuse GPS position with IMU data, continuously correcting drift with an absolute reference.
@@ -435,7 +435,7 @@ v[i] = v[i-1] + (a[i-1] + a[i]) / 2 · Δt
 - **Шум**: Високочастотний шум вібрацій не компенсується при інтегруванні — він накопичується як випадкове блукання.
 
 У цьому проєкті дрейф компенсується двома способами:
-1. **Демпфування поблизу нуля** — коли `|acc| < 0.05 м/с²`, швидкість множиться на 0.99 за семпл, що пригнічує дрейф під час зависання.
+1. **ZUPT (Zero Velocity Update)** — коли `|acc| < 0.08 м/с²` для 5 послідовних семплів, апарат вважається нерухомим, і швидкість скидається до 0. Це запобігає накопиченню лінійного дрейфу під час зависання або перед зльотом.
 2. **Лінійне детрендування** — для візуалізації застосовується корекція кінцевої точки: припускаючи `v_початок = v_кінець = 0` (апарат у спокої на зльоті та посадці), віднімається лінійний нахил, що дорівнює накопиченому дрейфу.
 
 Правильне рішення для довгострокової точності позиції — **Розширений фільтр Калмана (EKF)**: саме цей алгоритм Ardupilot використовує всередині для злиття GPS-позиції з даними IMU, безперервно коригуючи дрейф абсолютним орієнтиром.

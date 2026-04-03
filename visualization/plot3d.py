@@ -2,9 +2,10 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 
-def build_3d_track(gps_enu_df, color_by='speed'):
+def build_3d_track(gps_enu_df, color_by='speed', show_anomalies=True):
     from analytics.metrics import downsample_df
     df = downsample_df(gps_enu_df, 3000).copy()
+    
     if color_by == 'speed' and 'Spd' in df.columns:
         color_values = pd.to_numeric(df['Spd'], errors='coerce').fillna(0).values
         colorbar_title, colorscale = 'Швидкість (м/с)', 'Viridis'
@@ -12,12 +13,84 @@ def build_3d_track(gps_enu_df, color_by='speed'):
         t = pd.to_numeric(df['TimeUS'], errors='coerce').values
         color_values = (t - t.min()) / (t.max() - t.min() + 1e-9)
         colorbar_title, colorscale = 'Час польоту', 'Plasma'
-    track = go.Scatter3d(x=df['E_m'], y=df['N_m'], z=df['U_m'], mode='lines', line=dict(color=color_values, colorscale=colorscale, width=5, colorbar=dict(title=colorbar_title, thickness=15, len=0.6)), name='Траєкторія')
-    start = go.Scatter3d(x=[df['E_m'].iloc[0]], y=[df['N_m'].iloc[0]], z=[df['U_m'].iloc[0]], mode='markers', marker=dict(size=8, color='green'), name='Старт')
-    finish = go.Scatter3d(x=[df['E_m'].iloc[-1]], y=[df['N_m'].iloc[-1]], z=[df['U_m'].iloc[-1]], mode='markers', marker=dict(size=8, color='red'), name='Фінш')
-    shadow = go.Scatter3d(x=df['E_m'], y=df['N_m'], z=np.zeros(len(df)), mode='lines', line=dict(color='gray', width=1, dash='dot'), name='Проекція', opacity=0.3)
-    fig = go.Figure(data=[shadow, track, start, finish])
-    fig.update_layout(template='plotly_dark', title='3D-траєкторія БПЛА', scene=dict(xaxis_title='E (m)', yaxis_title='N (m)', zaxis_title='U (m)', aspectmode='data'), margin=dict(l=0, r=0, b=0, t=40), height=600)
+        
+    track = go.Scatter3d(
+        x=df['E_m'], y=df['N_m'], z=df['U_m'],
+        mode='lines',
+        line=dict(color=color_values, colorscale=colorscale, width=5, 
+                  colorbar=dict(title=colorbar_title, thickness=15, len=0.6)),
+        name='Траєкторія',
+        hovertemplate='E: %{x:.1f}m<br>N: %{y:.1f}m<br>U: %{z:.1f}m<extra></extra>'
+    )
+    
+    start = go.Scatter3d(x=[df['E_m'].iloc[0]], y=[df['N_m'].iloc[0]], z=[df['U_m'].iloc[0]], 
+                        mode='markers', marker=dict(size=8, color='green'), name='Старт')
+    finish = go.Scatter3d(x=[df['E_m'].iloc[-1]], y=[df['N_m'].iloc[-1]], z=[df['U_m'].iloc[-1]], 
+                         mode='markers', marker=dict(size=8, color='red'), name='Фініш')
+    shadow = go.Scatter3d(x=df['E_m'], y=df['N_m'], z=np.zeros(len(df)), 
+                         mode='lines', line=dict(color='gray', width=1, dash='dot'), 
+                         name='Проекція', opacity=0.3)
+    
+    data = [shadow, track, start, finish]
+    
+    if show_anomalies:
+        anomalies = []
+        # Sharp climb detection
+        if 'VZ' in df.columns:
+            vz = df['VZ'].values
+            sharp_climb_idx = np.where(vz > 5.0)[0]
+            if len(sharp_climb_idx) > 0:
+                anomalies.append(go.Scatter3d(
+                    x=df['E_m'].iloc[sharp_climb_idx], y=df['N_m'].iloc[sharp_climb_idx], z=df['U_m'].iloc[sharp_climb_idx],
+                    mode='markers', marker=dict(size=6, color='orange', symbol='diamond'),
+                    name='Різкий набір', hovertext='Швидкий підйом > 5м/с'
+                ))
+        
+        # High vibration detection (if vibe data available and synced)
+        # Note: In a real scenario we'd need vibe synced to GPS ENU. 
+        # For now, let's stick to GPS-derived anomalies or simple speed spikes.
+        if 'Spd' in df.columns:
+            spd = df['Spd'].values
+            overspeed_idx = np.where(spd > 20.0)[0] # Example threshold 20m/s
+            if len(overspeed_idx) > 0:
+                anomalies.append(go.Scatter3d(
+                    x=df['E_m'].iloc[overspeed_idx], y=df['N_m'].iloc[overspeed_idx], z=df['U_m'].iloc[overspeed_idx],
+                    mode='markers', marker=dict(size=6, color='red', symbol='cross'),
+                    name='Перевищення швидкості', hovertext='Швидкість > 20м/с'
+                ))
+        data.extend(anomalies)
+
+    fig = go.Figure(data=data)
+    fig.update_layout(
+        template='plotly_dark', 
+        title='3D-траєкторія БПЛА', 
+        scene=dict(xaxis_title='E (m)', yaxis_title='N (m)', zaxis_title='U (m)', aspectmode='data'), 
+        margin=dict(l=0, r=0, b=0, t=40), 
+        height=700,
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+    )
+    return fig
+
+def build_3d_track_animation(gps_enu_df):
+    from analytics.metrics import downsample_df
+    # For animation, we need fewer points for smoothness
+    df = downsample_df(gps_enu_df, 200).copy()
+    
+    fig = go.Figure(
+        data=[
+            go.Scatter3d(x=df['E_m'], y=df['N_m'], z=df['U_m'], mode='lines', line=dict(color='gray', width=2), name='Шлях'),
+            go.Scatter3d(x=[df['E_m'].iloc[0]], y=[df['N_m'].iloc[0]], z=[df['U_m'].iloc[0]], 
+                        mode='markers', marker=dict(size=10, color='yellow', symbol='sphere'), name='БПЛА')
+        ],
+        layout=go.Layout(
+            template='plotly_dark',
+            scene=dict(xaxis_title='E (m)', yaxis_title='N (m)', zaxis_title='U (m)', aspectmode='data'),
+            updatemenus=[dict(type="buttons", buttons=[dict(label="Play", method="animate", args=[None, {"frame": {"duration": 50, "redraw": True}, "fromcurrent": True}])])],
+            margin=dict(l=0, r=0, b=0, t=40),
+            height=700
+        , title='Анімація польоту (Replay)'),
+        frames=[go.Frame(data=[go.Scatter3d(x=[df['E_m'].iloc[i]], y=[df['N_m'].iloc[i]], z=[df['U_m'].iloc[i]])], traces=[1]) for i in range(len(df))]
+    )
     return fig
 
 def build_altitude_chart(gps_df):

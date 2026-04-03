@@ -3,8 +3,9 @@ import os
 from scraper.dataflash import parse_log, get_gps_dataframe, get_imu_dataframe, get_attitude_dataframe, get_vibe_dataframe, get_baro_dataframe, get_battery_dataframe, get_mode_dataframe
 from analytics.metrics import compute_metrics
 from analytics.coords import gps_to_enu
-from visualization.plot3d import build_3d_track, build_altitude_chart, build_speed_comparison_chart, build_attitude_tracking_chart, build_vibration_chart, build_baro_vs_gps_chart, build_battery_chart
+from visualization.plot3d import build_3d_track, build_3d_track_animation, build_altitude_chart, build_speed_comparison_chart, build_attitude_tracking_chart, build_vibration_chart, build_baro_vs_gps_chart, build_battery_chart
 from visualization.map_view import build_map, generate_kml
+from analytics.pdf_report import generate_pdf_report
 from ai.assistant import analyze_flight, analyze_flight_ab, AVAILABLE_MODELS, DEFAULT_MODEL
 from ai.token_counter import get_session_usage
 from ai.pipeline_logger import get_recent_logs
@@ -118,6 +119,8 @@ if uploaded is None:
 
 st.sidebar.markdown(f'<div class="section-label" style="margin-top:16px">{t("sidebar_visualization", lang)}</div>', unsafe_allow_html=True)
 color_by = st.sidebar.radio(t('sidebar_color_label', lang), ['speed', 'time'], format_func=lambda x: t('sidebar_color_speed', lang) if x == 'speed' else t('sidebar_color_time', lang), label_visibility='collapsed')
+show_anoms = st.sidebar.toggle(t('sidebar_show_anomalies', lang), value=True)
+animate_mode = st.sidebar.toggle(t('sidebar_animate', lang), value=False)
 
 st.sidebar.markdown(f'<div class="section-label" style="margin-top:16px">{t("sidebar_ai_engine", lang)}</div>', unsafe_allow_html=True)
 gemini_key = st.sidebar.text_input('Gemini API Key', type='password', placeholder=t('sidebar_api_key_placeholder', lang), help=t('sidebar_api_key_help', lang))
@@ -192,7 +195,10 @@ if uploaded is not None or demo_path:
     tab_3d, tab_map, tab_charts, tab_ai = st.tabs([t('tab_3d', lang), t('tab_map', lang), t('tab_charts', lang), t('tab_ai', lang)])
 
     with tab_3d:
-        st.plotly_chart(build_3d_track(gps_enu, color_by=color_by), use_container_width=True)
+        if animate_mode:
+            st.plotly_chart(build_3d_track_animation(gps_enu), use_container_width=True)
+        else:
+            st.plotly_chart(build_3d_track(gps_enu, color_by=color_by, show_anomalies=show_anoms), use_container_width=True)
 
     with tab_map:
         try:
@@ -241,12 +247,20 @@ if uploaded is not None or demo_path:
                         with col:
                             st.markdown(f'<div class="ai-card"><div class="ai-card-header"><span class="model-badge">{res["model"]}</span><span class="token-info">{res["prompt_tokens"]}↑ {res["completion_tokens"]}↓ tokens</span></div>', unsafe_allow_html=True)
                             st.markdown(res['text']); st.markdown('</div>', unsafe_allow_html=True)
-                            st.download_button(f'{t("ai_export_ab", lang)} ({res["model"]})', data=res['text'], file_name=f'flight_analysis_{res["model"]}.txt', mime='text/plain', use_container_width=True)
+                            c1, c2 = st.columns(2)
+                            with c1: st.download_button(f'{t("ai_export_ab", lang)} (.txt)', data=res['text'], file_name=f'flight_analysis_{res["model"]}.txt', mime='text/plain', use_container_width=True)
+                            with c2: 
+                                pdf_data = generate_pdf_report(filename, metrics, res['text'])
+                                st.download_button(f'{t("ai_export_ab", lang)} (PDF)', data=pdf_data, file_name=f'flight_analysis_{res["model"]}.pdf', mime='application/pdf', use_container_width=True)
             else:
                 with st.spinner(t('ai_spinner', lang)): result = analyze_flight(metrics=metrics, gps_df=gps_df, api_key=gemini_key, model=selected_model)
                 st.markdown(f'<div class="ai-card"><div class="ai-card-header"><span class="model-badge">{result["model"]}</span><span class="token-info">{result["prompt_tokens"]}↑ &nbsp;{result["completion_tokens"]}↓ &nbsp;tokens</span></div>', unsafe_allow_html=True)
                 st.markdown(result['text']); st.markdown('</div>', unsafe_allow_html=True)
-                st.download_button(t('ai_export', lang), data=result['text'], file_name='flight_analysis.txt', mime='text/plain')
+                c1, c2 = st.columns(2)
+                with c1: st.download_button(t('ai_export', lang) + " (.txt)", data=result['text'], file_name='flight_analysis.txt', mime='text/plain', use_container_width=True)
+                with c2:
+                    pdf_data = generate_pdf_report(filename, metrics, result['text'])
+                    st.download_button(t('ai_export', lang) + " (PDF)", data=pdf_data, file_name=f"{filename.split('.')[0]}_report.pdf", mime='application/pdf', use_container_width=True)
 
         usage = get_session_usage()
         if usage['requests'] > 0: st.markdown(f'<div class="token-bar"><div class="token-stat">{t("token_requests", lang)} <span>{usage["requests"]}</span></div><div class="token-stat">{t("token_total", lang)} <span>{usage["total_tokens"]}</span></div><div class="token-stat">{t("token_prompt", lang)} <span>{usage["prompt_tokens"]}</span></div><div class="token-stat">{t("token_completion", lang)} <span>{usage["completion_tokens"]}</span></div></div>', unsafe_allow_html=True)
